@@ -1,0 +1,5 @@
+{
+  "name": "black-hole-gen",
+  "private": true,
+  "scripts": { "test": "node --test" }
+}
