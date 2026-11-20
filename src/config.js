@@ -62,7 +62,8 @@
     if (kind === 'color') return typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v) ? v : def;
     if (kind === 'bool') return typeof v === 'boolean' ? v : def;
     if (kind === 'angle') return typeof v === 'number' && isFinite(v) ? wrapAngle(v) : def;
-    if (kind === 'photo') return typeof v === 'string' && /^(data:image\/|https?:\/\/)/.test(v) ? v : null;
+    // links may not carry anything that could break out of HTML (<, >, quotes, spaces); data URLs must be plain base64 images
+    if (kind === 'photo') return typeof v === 'string' && /^(data:image\/[a-z+.-]+;base64,[A-Za-z0-9+\/=]+|https?:\/\/[^\s<>"'`\\]+)$/.test(v) ? v : null;
     if (kind === 'objects') {
       if (!Array.isArray(v)) return [];
       return v.slice(0, MAX_OBJECTS).map(function (o) { return group(OBJECT, o && typeof o === 'object' ? o : {}); });

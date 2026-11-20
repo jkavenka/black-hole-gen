@@ -73,3 +73,33 @@ test('two snippets on one page each claim their own block, even one with no heig
   assert.equal('BH' in ctx, false);
   assert.ok(warns.length >= 1); // no WebGL in the stub: plain background path
 });
+
+test('a hostile photo link cannot break out of the snippet script', () => {
+  const evil = 'https://x.test/a.jpg?</script><script>alert(1)</script>';
+  const cfg = BH.decodeHash(BH.encodeHash({ universe: { mode: 'photo', photo: evil } }));
+  assert.equal(cfg.universe.photo, null, 'config refuses links with < > quotes or spaces');
+  const s = BH.buildSnippet(BH.DEFAULTS, { url: evil });
+  assert.equal((s.match(/<\/script/gi) || []).length, 1);
+  assert.ok(!/<script>alert/.test(s));
+});
+
+test('without currentScript, each snippet still finds its own block', () => {
+  const a = BH.buildSnippet(BH.DEFAULTS, null), b = BH.buildSnippet(BH.normalize({ mass: 0.9 }), null);
+  const ida = /data-bh="(\w+)"/.exec(a)[1], idb = /data-bh="(\w+)"/.exec(b)[1];
+  assert.notEqual(ida, idb);
+  const roots = [ida, idb].map((id) => {
+    const attrs = { 'data-bh': id }, kids = [];
+    return { clientWidth: 100, clientHeight: 100, style: {}, attrs, kids, classList: { contains: (c) => c === 'bh-bg' },
+      setAttribute: (k, v) => (attrs[k] = v), hasAttribute: (k) => k in attrs, getAttribute: (k) => attrs[k], appendChild: (c) => kids.push(c) };
+  });
+  const ctx = vm.createContext({
+    console: { warn() {} }, requestAnimationFrame: () => 1, cancelAnimationFrame() {},
+    document: { currentScript: null, hidden: false, addEventListener() {}, removeEventListener() {},
+      createElement: () => ({ style: {}, getContext: () => null, addEventListener() {}, remove() {} }),
+      querySelectorAll: (sel) => { const m = /data-bh="(\w+)"/.exec(sel); return roots.filter((r) => !r.hasAttribute('data-bh-on') && (!m || r.attrs['data-bh'] === m[1])); } },
+  });
+  vm.runInContext(scriptOf(a), ctx);
+  vm.runInContext(scriptOf(b), ctx);
+  assert.ok(roots[0].hasAttribute('data-bh-on') && roots[0].kids.length === 1, 'snippet A took block A');
+  assert.ok(roots[1].hasAttribute('data-bh-on') && roots[1].kids.length === 1, 'snippet B took block B');
+});

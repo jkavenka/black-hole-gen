@@ -225,7 +225,7 @@
     api.resetDrift = function () { drift = 0; };
     api.setPhoto = function (img, kind) {
       if (!gl) return;
-      if (!img) { photoTex = null; build(); return; }
+      if (!img) { if (photoTex) gl.deleteTexture(photoTex); photoTex = null; build(); return; }
       var tex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -235,15 +235,16 @@
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       tex.aspect = (img.naturalWidth || img.width) / (img.naturalHeight || img.height);
+      if (photoTex) gl.deleteTexture(photoTex);
       photoTex = tex;
       build();
       if (!running) draw();
     };
     var photoUrlLoaded = null;
     function loadPhotoUrl(url) {
-      if (!url) { photoTex = null; photoUrlLoaded = null; build(); return; }
+      if (!url) { if (photoTex) gl.deleteTexture(photoTex); photoTex = null; photoUrlLoaded = null; build(); return; }
       if (url === photoUrlLoaded) return;
-      photoUrlLoaded = url; photoTex = null;
+      photoUrlLoaded = url; // keep showing the previous photo until the new one has loaded
       var img = new Image();
       if (/^https?:/.test(url)) img.crossOrigin = 'anonymous';
       img.onload = function () { if (photoUrlLoaded === url) api.setPhoto(img, cfg.universe.photoKind); };

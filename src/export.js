@@ -25,6 +25,10 @@
     return c;
   }
 
+  // JSON that is safe inside <script>: no "</script>", "<!--" or line-separator tricks
+  function safe(v) { return JSON.stringify(v).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029'); }
+  BH.safeJson = safe;
+
   function literal(obj, indent, path, notes, photoVar) {
     var pad = new Array(indent + 3).join(' '), lines = [];
     var keys = Object.keys(obj);
@@ -35,7 +39,7 @@
         lines = lines.concat(literal(v, indent + 2, p, notes, photoVar));
         lines.push(pad + '},');
       } else {
-        var val = p === 'universe.photo' && v && photoVar ? photoVar : JSON.stringify(v);
+        var val = p === 'universe.photo' && v && photoVar ? photoVar : safe(v);
         lines.push(pad + k + ': ' + val + ',' + note.replace(/\n/g, ' '));
       }
     });
@@ -45,16 +49,18 @@
   BH.buildSnippet = function (cfg, photo) {
     cfg = BH.normalize(cfg);
     var c = JSON.parse(JSON.stringify(cfg));
-    var usesPhoto = c.universe.mode === 'photo' && photo && (photo.dataUrl || photo.url);
-    c.universe.photo = usesPhoto ? (photo.url || photo.dataUrl) : null;
+    var cleanPhoto = photo ? BH.normalize({ universe: { photo: photo.url || photo.dataUrl } }).universe.photo : null; // same rules as the editor
+    var usesPhoto = c.universe.mode === 'photo' && cleanPhoto;
+    c.universe.photo = usesPhoto ? cleanPhoto : null;
     if (!usesPhoto && c.universe.mode === 'photo') c.universe.mode = 'stars';
-    var photoVar = usesPhoto && photo.dataUrl ? 'PHOTO' : null;
+    var photoVar = usesPhoto && /^data:/.test(cleanPhoto) ? 'PHOTO' : null;
+    var id = Math.random().toString(36).slice(2, 8); // ties this script to its own block, even when pasted twice
     var mods = BH.modules.filter(function (m) { return m.runtime; }).map(function (m) {
       return '  // ---- ' + m.name + ' ----\n  (' + m.fn.toString() + ')(BH);';
     }).join('\n');
     var js = [
       '(function () {',
-      photoVar ? '  var PHOTO = ' + JSON.stringify(c.universe.photo) + ';' : '',
+      photoVar ? '  var PHOTO = ' + safe(c.universe.photo) + ';' : '',
       '  // Everything you picked in the generator. Change values here to fine-tune.',
       '  var CONFIG = {',
       literal(c, 2, '', comments(), photoVar).join('\n'),
@@ -66,7 +72,8 @@
       '  for (var el = s && s.previousElementSibling; el; el = el.previousElementSibling) {',
       '    if (el.classList && el.classList.contains(\'bh-bg\') && !el.hasAttribute(\'data-bh-on\')) { root = el; break; }',
       '  }',
-      '  if (!root) { var all = document.querySelectorAll(\'.bh-bg:not([data-bh-on])\'); root = all[all.length - 1]; }',
+      '  if (!root) root = document.querySelectorAll(\'.bh-bg[data-bh="' + id + '"]:not([data-bh-on])\')[0];',
+      '  if (!root) root = document.querySelectorAll(\'.bh-bg:not([data-bh-on])\')[0];',
       '  if (!root) return;',
       '  root.setAttribute(\'data-bh-on\', \'\');',
       '  function boot() { try { BH.createEngine(root, CONFIG, { interactive: false, mobileAuto: true }); } catch (e) { root.style.background = CONFIG.universe.plain; } }',
@@ -78,10 +85,11 @@
       '})();',
     ].filter(Boolean).join('\n');
     var bg = c.universe.mode === 'plain' ? c.universe.plain : '#05040b';
+    if (/<\/script|<!--/i.test(js)) throw new Error('export: generated script contains an HTML-breaking sequence');
     return [
       '<!-- Black hole background, made with the Black Hole Generator. Paste the whole thing into a Tilda Zero Block HTML element (it fills its block). -->',
-      '<div class="bh-bg" aria-hidden="true"></div>',
-      '<style>.bh-bg{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:' + bg + '}</style>',
+      '<div class="bh-bg" data-bh="' + id + '" aria-hidden="true"></div>',
+      '<style>.bh-bg[data-bh="' + id + '"]{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:' + bg + '}</style>',
       '<script>',
       js,
       '</script>',

@@ -178,7 +178,7 @@
             if (c.key === 'universe.mode' && o[0] === 'photo' && !target.universe.photo && lastPhoto) {
               var u = clone(target.universe); u.mode = 'photo'; u.photo = lastPhoto.dataUrl; u.photoKind = lastPhoto.kind; return set('universe', u);
             }
-            if (c.key === 'universe.photoSize' && photoFile) { set(c.key, o[0]); return usePhoto(photoFile); }
+            if (c.key === 'universe.photoSize' && photoFile && /^data:/.test(target.universe.photo || '')) { set(c.key, o[0]); return usePhoto(photoFile); }
             set(c.key, o[0]);
           } }));
         });
@@ -192,7 +192,8 @@
         link.addEventListener('change', function () {
           var v = link.value.trim();
           if (!/^https?:\/\//.test(v)) { if (v) say('That link should start with https://'); return; }
-          say(''); var u = clone(target.universe); u.mode = 'photo'; u.photo = v; u.photoKind = 'flat'; set('universe', u);
+          say(''); photoFile = null; lastPhoto = null; // the link replaces any uploaded photo
+          var u = clone(target.universe); u.mode = 'photo'; u.photo = v; u.photoKind = 'flat'; set('universe', u);
         });
         row.appendChild(el('div', { class: 'bh-label', text: c.label }));
         row.appendChild(link);
