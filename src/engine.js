@@ -7,6 +7,7 @@
   function rgb(hex) { var n = parseInt(hex.slice(1), 16); return [(n >> 16) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255]; }
   var RAD = Math.PI / 180;
   var SCALES = { lighter: 0.35, auto: 0.5, sharper: 0.75 };
+  var PIXEL_BUDGET = { lighter: 600e3, auto: 1.1e6, sharper: 2.4e6 };
 
   BH.createEngine = function (root, cfg, opts) {
     opts = opts || {};
@@ -77,6 +78,9 @@
       var s = rs;
       if (d.mobile && opts.mobileAuto) s = Math.min(s, 0.35);
       var cw = Math.max(1, Math.round(W * DPR * s)), ch = Math.max(1, Math.round(H * DPR * s));
+      // pixel budget: big screens get the same GPU work as a laptop-sized window, so nothing heats up
+      var budget = PIXEL_BUDGET[cfg.quality] || PIXEL_BUDGET.auto;
+      if (cw * ch > budget) { var k = Math.sqrt(budget / (cw * ch)); cw = Math.max(1, Math.round(cw * k)); ch = Math.max(1, Math.round(ch * k)); }
       if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
       gl.viewport(0, 0, canvas.width, canvas.height);
     }
