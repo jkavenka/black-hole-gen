@@ -1,6 +1,22 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>Black Hole Generator</title></head>
-<body><pre id="out"></pre>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Black Hole Generator</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #05040b; color: #e8e4f0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  .bh-stage { position: fixed; inset: 0; overflow: hidden; }
+</style>
+</head>
+<body>
+<div class="bh-stage" id="stage"></div>
 <script src="src/config.js"></script>
-<script>document.getElementById('out').textContent = JSON.stringify(BH.DEFAULTS, null, 2);</script>
-</body></html>
+<script src="src/physics.js"></script>
+<script src="src/shader.js"></script>
+<script src="src/engine.js"></script>
+<script>
+  window.__engine = BH.createEngine(document.getElementById('stage'), BH.decodeHash(location.hash), { interactive: true, mobileAuto: true });
+</script>
+</body>
+</html>
