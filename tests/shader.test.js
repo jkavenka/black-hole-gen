@@ -46,3 +46,17 @@ test('features key changes with features but not with slider values', () => {
   assert.equal(a, b);
   assert.notEqual(a, JSON.stringify(BH.features(BH.normalize({ toys: { teddy: true } }))));
 });
+
+test('star shape ships only star code', () => {
+  const s = fs({ toys: { objects: [{ shape: 'star', skin: 'cereal' }] } });
+  assert.match(s, /#define HAS_SHAPE_STAR/);
+  assert.match(s, /sdStar/);
+  assert.doesNotMatch(s, /sdTorus/);
+});
+
+test('torus shape ships only torus code', () => {
+  const s = fs({ toys: { objects: [{ shape: 'torus', skin: 'metal' }] } });
+  assert.match(s, /#define HAS_SHAPE_TORUS/);
+  assert.match(s, /sdTorus/);
+  assert.doesNotMatch(s, /sdStar/);
+});

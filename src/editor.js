@@ -207,7 +207,7 @@
     if (!groups.Toys) { groups.Toys = el('details', { class: 'bh-group', open: '' }, [el('summary', { text: 'Toys' })]); body.insertBefore(groups.Toys, groups.Quality); }
     var launch = { shape: 'orb', skin: 'cereal', orbit: 0.5 };
     var SHAPES = [['orb', 'Orb'], ['star', 'Star'], ['torus', 'Ring']], SKINS = [['rocky', 'Rocky'], ['fluffy', 'Fluffy'], ['cereal', 'Cereal'], ['metal', 'Metal']];
-    BH.editor.shapesReady = { orb: true };
+    BH.editor.shapesReady = { orb: true, star: true, torus: true };
     function seg(opts, key) {
       var box = el('div', { class: 'bh-seg' });
       opts.forEach(function (o) {

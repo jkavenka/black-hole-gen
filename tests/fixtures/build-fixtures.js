@@ -26,7 +26,7 @@ const out = path.join(__dirname, 'out');
 fs.mkdirSync(out, { recursive: true });
 fs.writeFileSync(path.join(out, 'default.html'), BH.buildStandaloneHtml(BH.DEFAULTS, null));
 const photo = checkerPng(480, 320);
-const full = BH.normalize({ universe: { mode: 'photo', photo }, toys: { teddy: true, objects: [{ skin: 'cereal', orbit: 0.3, tilt: 30, phase: 100 }, { skin: 'metal', orbit: 0.6, tilt: -25, phase: 250 }] } });
+const full = BH.normalize({ universe: { mode: 'photo', photo }, toys: { teddy: true, objects: [{ shape: 'star', skin: 'cereal', orbit: 0.3, tilt: 30, phase: 100 }, { skin: 'metal', orbit: 0.6, tilt: -25, phase: 250 }] } });
 fs.writeFileSync(path.join(out, 'full.html'), BH.buildStandaloneHtml(full, { dataUrl: photo }));
 const snip = BH.buildSnippet(BH.DEFAULTS, null);
 fs.writeFileSync(path.join(out, 'two-blocks.html'), `<!doctype html><html><head><meta charset="utf-8"><title>two blocks</title>

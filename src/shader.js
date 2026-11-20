@@ -200,22 +200,68 @@
     '  col=vec3(0.85,0.87,0.9)*env*fr; }'
     ].join('\n')
   };
-  var OBJ_TAIL = [    ' return vec4(col,a);}',
-    'vec4 objects(vec3 a,vec3 b){',
-    ' vec3 ab=b-a; float L=length(ab); vec3 rd=ab/L; float best=1e9; vec4 res=vec4(0.0);',
-    ' for(int i=0;i<OBJ_COUNT;i++){',
-    '  vec3 c=uObj[i].xyz; float R=uObj[i].w;',
-    '  vec3 oc=a-c; float bq=dot(oc,rd); float cq=dot(oc,oc)-R*R; float dd=bq*bq-cq;',
-    '  if(dd<0.0) continue;',
-    '  float t=-bq-sqrt(dd);',
-    '  if(t<0.0||t>L||t>best) continue;',
-    '  vec3 hp=a+rd*t; vec3 n=normalize(hp-c);',
-    '  vec3 q=rotY(n,uObjInfo[i].z)+uObjInfo[i].w;',
-    '  best=t; res=shade(hp,n,rd,q,uObjInfo[i].x);',
-    '  res.a*=smoothstep(1.0,3.0,length(hp-uCam));',            // fade out rather than hit the camera
-    ' }',
-    ' return res;}',
-  ].join('\n');
+  // Star and ring shapes: distance functions in the object's own (tumbling) frame, unit bounding sphere.
+  var SDF = {
+    star: [
+      'float sdStar5(vec2 p,float r,float rf){',
+      ' const vec2 k1=vec2(0.809016994375,-0.587785252292); const vec2 k2=vec2(-0.809016994375,-0.587785252292);',
+      ' p.x=abs(p.x); p-=2.0*max(dot(k1,p),0.0)*k1; p-=2.0*max(dot(k2,p),0.0)*k2; p.x=abs(p.x); p.y-=r;',
+      ' vec2 ba=rf*vec2(-k1.y,k1.x)-vec2(0.0,1.0); float h=clamp(dot(p,ba)/dot(ba,ba),0.0,r);',
+      ' return length(p-ba*h)*sign(p.y*ba.x-p.x*ba.y);}',
+      'float sdStar(vec3 p){ float d=sdStar5(p.xy,0.68,0.42);',  // a puffed-up cereal star
+      ' vec2 w=vec2(d+0.06,abs(p.z)-0.12); return min(max(w.x,w.y),0.0)+length(max(w,0.0))-0.1;}',
+    ].join('\n'),
+    torus: 'float sdTorus(vec3 p){ return length(vec2(length(p.xz)-0.55,p.y))-0.2; }',
+  };
+  function shapeCode(f) {
+    var has = {};
+    f.objects.forEach(function (o) { if (o.shape !== 'orb') has[o.shape] = 1; });
+    if (!has.star && !has.torus) return { fns: '', branch: '' };
+    var fns = [];
+    if (has.star) fns.push(SDF.star);
+    if (has.torus) fns.push(SDF.torus);
+    var body = has.star && has.torus ? 'return sh<1.5?sdStar(p):sdTorus(p);' : has.star ? 'return sdStar(p);' : 'return sdTorus(p);';
+    fns.push(
+      'float sdShape(vec3 p,float sh){' + body + '}',
+      'vec3 toLocal(vec3 p,float a){ p=rotY(p,a); float c=cos(0.6),s=sin(0.6); return vec3(p.x,c*p.y-s*p.z,s*p.y+c*p.z); }',
+      'vec3 fromLocal(vec3 p,float a){ float c=cos(0.6),s=sin(0.6); p=vec3(p.x,c*p.y+s*p.z,-s*p.y+c*p.z); return rotY(p,-a); }',
+      'vec3 sdNormal(vec3 p,float sh){ const vec2 e=vec2(0.004,-0.004);',
+      ' return normalize(e.xyy*sdShape(p+e.xyy,sh)+e.yyx*sdShape(p+e.yyx,sh)+e.yxy*sdShape(p+e.yxy,sh)+e.xxx*sdShape(p+e.xxx,sh)); }'
+    );
+    var branch = [
+      '  else {',  // tumbling star / ring: short march inside the bounding sphere only
+      '   float t0=max(t,0.0), t1=min(-bq+sq,L); if(t0>t1||t0>best) continue;',
+      '   float tt=t0; bool hit=false; float sh=uObjInfo[i].y; float sp=uObjInfo[i].z;',
+      '   for(int k=0;k<24;k++){ float d=sdShape(toLocal(a+rd*tt-c,sp)/R,sh)*R; if(d<0.003){hit=true;break;} tt+=d; if(tt>t1) break; }',
+      '   if(!hit||tt>best) continue;',
+      '   t=tt; vec3 lp=toLocal(a+rd*t-c,sp)/R; n=fromLocal(sdNormal(lp,sh),sp); q=lp*1.3+uObjInfo[i].w;',
+      '  }',
+    ].join('\n');
+    return { fns: fns.join('\n'), branch: branch };
+  }
+  function objTail(f) {
+    var sc = shapeCode(f);
+    return [
+      ' return vec4(col,a);}',
+      sc.fns,
+      'vec4 objects(vec3 a,vec3 b){',
+      ' vec3 ab=b-a; float L=length(ab); vec3 rd=ab/L; float best=1e9; vec4 res=vec4(0.0);',
+      ' for(int i=0;i<OBJ_COUNT;i++){',
+      '  vec3 c=uObj[i].xyz; float R=uObj[i].w;',
+      '  vec3 oc=a-c; float bq=dot(oc,rd); float cq=dot(oc,oc)-R*R; float dd=bq*bq-cq;',
+      '  if(dd<0.0) continue;',
+      '  float sq=sqrt(dd); float t=-bq-sq; vec3 n; vec3 q;',
+      '  if(uObjInfo[i].y<0.5){',
+      '   if(t<0.0||t>L||t>best) continue;',
+      '   n=normalize(a+rd*t-c); q=rotY(n,uObjInfo[i].z)+uObjInfo[i].w;',
+      '  }',
+      sc.branch,
+      '  best=t; vec3 hp=a+rd*t; res=shade(hp,n,rd,q,uObjInfo[i].x);',
+      '  res.a*=smoothstep(1.0,3.0,length(hp-uCam));',  // fade out rather than hit the camera
+      ' }',
+      ' return res;}',
+    ].filter(Boolean).join('\n');
+  }
 
   // The teddy: a picture card in curved space, so it gets lensed like everything else.
   BH.TEDDY_CHUNK = [
@@ -242,7 +288,7 @@
     if (f.objects.length) {
       var used = {};
       f.objects.forEach(function (o) { used[o.skin] = 1; });
-      out.push(OBJ_HEAD, Object.keys(SKINS).filter(function (k) { return used[k]; }).map(function (k) { return SKINS[k]; }).join('\n'), OBJ_TAIL);
+      out.push(OBJ_HEAD, Object.keys(SKINS).filter(function (k) { return used[k]; }).map(function (k) { return SKINS[k]; }).join('\n'), objTail(f));
     }
     if (f.teddy && BH.TEDDY_CHUNK) out.push(BH.TEDDY_CHUNK);
     out.push('vec4 toys(vec3 a,vec3 b){ vec4 r=vec4(0.0);');
