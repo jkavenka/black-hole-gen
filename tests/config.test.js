@@ -53,6 +53,17 @@ test('derive: extremes stay finite and never closer than 6', () => {
   assert.equal(BH.derive(BH.DEFAULTS, { w: 1440, h: 900 }).distance, 30);
 });
 
+test('derive: the shadow never fills more than 4/5 of the frame', () => {
+  for (const closer of [0, 0.5, 1]) for (const mass of [0, 0.5, 1]) {
+    const d = BH.derive(BH.normalize({ mass, view: { closer } }), { w: 375, h: 700 });
+    const shadow = 2 * Math.asin(1.5 * Math.sqrt(3) / d.distance * Math.sqrt(1 - 1 / d.distance));
+    assert.ok(shadow / d.fovY <= 0.8 + 1e-9, `closer ${closer} mass ${mass}: ${shadow / d.fovY}`);
+    assert.ok(d.fovY < 2.6);
+  }
+  const calm = BH.derive(BH.DEFAULTS, { w: 1440, h: 900 });
+  assert.ok(Math.abs(calm.fovY - 0.852) < 0.01);
+});
+
 test('derive: phone viewport scales by 1.35', () => {
   const desk = BH.derive(BH.DEFAULTS, { w: 1440, h: 900 });
   const phone = BH.derive(BH.DEFAULTS, { w: 375, h: 700 });

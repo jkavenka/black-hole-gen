@@ -123,10 +123,14 @@
   BH.derive = function (cfg, viewport) {
     var mobile = viewport.w < 768;
     var scale = Math.pow(2, (cfg.mass - 0.5) * 2) * (mobile ? 1.35 : 1);
+    var ease = smoothstep(0, 1, cfg.view.closer), D = 30 + (6 - 30) * ease;
+    // The view widens as you approach, so the shadow grows from 1/5 of the frame to at most 4/5 — never a black screen.
+    var shadow = Math.asin(Math.min(1, 1.5 * Math.sqrt(3) / D * Math.sqrt(1 - 1 / D)));
+    var frac = Math.min(0.8, (0.2 + 0.35 * ease) * scale);
     return {
-      distance: 30 + (6 - 30) * smoothstep(0, 1, cfg.view.closer),
+      distance: D,
       scale: scale,
-      fovY: 0.85 / scale,
+      fovY: 2 * shadow / frac,
       discOuter: 8 + 22 * cfg.disc.width,
       mobile: mobile,
     };
