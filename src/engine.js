@@ -40,7 +40,9 @@
       return s;
     }
     function build() {
-      var f = BH.features(cfg), key = JSON.stringify(f);
+      var f = BH.features(cfg);
+      if (f.universe === 'photo' && !photoTex) { f.universe = 'stars'; f.photoKind = null; } // until the photo arrives (or if it never does)
+      var key = JSON.stringify(f);
       if (key === progKey && prog) return true;
       try {
         var p = gl.createProgram();
@@ -74,8 +76,8 @@
       if (!gl || !W || !H) return;
       var s = rs;
       if (d.mobile && opts.mobileAuto) s = Math.min(s, 0.35);
-      canvas.width = Math.max(1, Math.round(W * DPR * s));
-      canvas.height = Math.max(1, Math.round(H * DPR * s));
+      var cw = Math.max(1, Math.round(W * DPR * s)), ch = Math.max(1, Math.round(H * DPR * s));
+      if (canvas.width !== cw || canvas.height !== ch) { canvas.width = cw; canvas.height = ch; }
       gl.viewport(0, 0, canvas.width, canvas.height);
     }
 
@@ -162,7 +164,7 @@
     api.resetDrift = function () { drift = 0; };
     api.setPhoto = function (img, kind) {
       if (!gl) return;
-      if (!img) { photoTex = null; return; }
+      if (!img) { photoTex = null; build(); return; }
       var tex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
@@ -173,17 +175,21 @@
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
       tex.aspect = (img.naturalWidth || img.width) / (img.naturalHeight || img.height);
       photoTex = tex;
+      build();
       if (!running) draw();
     };
     var photoUrlLoaded = null;
     function loadPhotoUrl(url) {
-      if (!url) { photoTex = null; photoUrlLoaded = null; return; }
+      if (!url) { photoTex = null; photoUrlLoaded = null; build(); return; }
       if (url === photoUrlLoaded) return;
-      photoUrlLoaded = url;
+      photoUrlLoaded = url; photoTex = null;
       var img = new Image();
       if (/^https?:/.test(url)) img.crossOrigin = 'anonymous';
       img.onload = function () { if (photoUrlLoaded === url) api.setPhoto(img, cfg.universe.photoKind); };
-      img.onerror = function () { if (typeof console !== 'undefined') console.warn('[black hole] could not load the photo — keeping the stars.'); };
+      img.onerror = function () {
+        if (photoUrlLoaded !== url) return;
+        if (opts.onPhotoError) opts.onPhotoError(url); else if (typeof console !== 'undefined') console.warn('[black hole] could not load the photo — keeping the stars.');
+      };
       img.src = url;
     }
     api.resize = function () { resize(); if (!running) draw(); };

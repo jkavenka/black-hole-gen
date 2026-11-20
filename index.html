@@ -5,18 +5,80 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Black Hole Generator</title>
 <style>
-  html, body { margin: 0; height: 100%; background: #05040b; color: #e8e4f0; font: 14px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; overflow: hidden; }
-  .bh-stage { position: fixed; inset: 0; overflow: hidden; }
+  :root {
+    --panel: rgba(14, 12, 22, 0.74);
+    --line: rgba(255, 255, 255, 0.08);
+    --text: #ece8f2;
+    --muted: #9a93a8;
+    --accent: #f2c46b;
+    --accent-ink: #1b1408;
+    --track: rgba(255, 255, 255, 0.14);
+  }
+  html, body { margin: 0; height: 100%; background: #05040b; color: var(--text); font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; overflow: hidden; }
+  .bh-stage { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none; }
+  .bh-stage.bh-grab { cursor: grabbing; }
+
+  .bh-panel { position: fixed; top: 16px; right: 16px; bottom: 16px; width: 320px; display: flex; flex-direction: column; pointer-events: none; }
+  .bh-inner { pointer-events: auto; flex: 1; overflow-y: auto; background: var(--panel); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid var(--line); border-radius: 16px; padding: 18px 18px 14px; scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.15) transparent; transition: opacity .25s, transform .25s; }
+  .bh-panel.bh-collapsed .bh-inner { opacity: 0; transform: translateX(24px); pointer-events: none; }
+  .bh-toggle { pointer-events: auto; position: absolute; top: 10px; right: 10px; z-index: 2; width: 32px; height: 32px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--text); font-size: 15px; cursor: pointer; }
+  .bh-panel.bh-collapsed .bh-toggle { background: var(--panel); }
+  h1 { margin: 2px 0 12px; font-size: 15px; font-weight: 600; letter-spacing: .02em; }
+
+  .bh-group { border-top: 1px solid var(--line); padding: 4px 0 8px; }
+  .bh-group summary { cursor: pointer; list-style: none; padding: 10px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+  .bh-group summary::-webkit-details-marker { display: none; }
+  .bh-group summary::after { content: '–'; float: right; }
+  .bh-group:not([open]) summary::after { content: '+'; }
+  .bh-row { padding: 6px 0; }
+  .bh-label { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .bh-check { justify-content: flex-start; cursor: pointer; margin: 0; }
+  .bh-inline { margin: 0; }
+  .bh-val { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bh-hint { color: var(--muted); font-size: 11.5px; margin-top: 4px; }
+  .bh-msg { display: none; margin: 0 0 10px; padding: 8px 10px; border-radius: 10px; background: rgba(242, 196, 107, .12); color: var(--accent); }
+
+  input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; margin: 0; }
+  input[type=range]::-webkit-slider-runnable-track { height: 3px; border-radius: 3px; background: var(--track); }
+  input[type=range]::-moz-range-track { height: 3px; border-radius: 3px; background: var(--track); }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; margin-top: -5.5px; border-radius: 50%; background: var(--text); box-shadow: 0 0 0 4px rgba(242,196,107,.0); transition: box-shadow .15s; }
+  input[type=range]::-moz-range-thumb { width: 14px; height: 14px; border: 0; border-radius: 50%; background: var(--text); }
+  input[type=range]:focus-visible::-webkit-slider-thumb, input[type=range]:active::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(242,196,107,.28); }
+  input[type=color] { width: 36px; height: 24px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; cursor: pointer; }
+  input[type=checkbox] { accent-color: var(--accent); width: 15px; height: 15px; }
+  .bh-text { width: 100%; box-sizing: border-box; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.05); color: var(--text); font: inherit; }
+
+  .bh-seg { display: flex; flex-wrap: wrap; gap: 4px; }
+  .bh-seg button { flex: 1; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line); background: rgba(255,255,255,.04); color: var(--muted); font: inherit; cursor: pointer; white-space: nowrap; }
+  .bh-seg button[aria-pressed=true] { background: rgba(242,196,107,.16); color: var(--accent); border-color: rgba(242,196,107,.35); }
+  .bh-btn { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--line); background: rgba(255,255,255,.06); color: var(--text); font: inherit; cursor: pointer; }
+  .bh-btn:hover, .bh-seg button:hover { border-color: rgba(255,255,255,.25); }
+  .bh-btn:focus-visible, .bh-seg button:focus-visible, .bh-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .bh-primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
+  .bh-primary:hover { border-color: transparent; filter: brightness(1.06); }
+  .bh-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 6px; }
+  .bh-calm { grid-column: 1 / -1; }
+  .bh-fps { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+
+  @media (max-width: 700px) {
+    .bh-panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 52vh; }
+    .bh-inner { border-radius: 16px 16px 0 0; border-bottom: 0; }
+    .bh-panel.bh-collapsed .bh-inner { transform: translateY(24px); }
+  }
+  @media (prefers-reduced-motion: reduce) { .bh-inner { transition: none; } }
 </style>
 </head>
 <body>
-<div class="bh-stage" id="stage"></div>
+<div class="bh-stage" id="stage" aria-label="Black hole view. Drag to rotate."></div>
+<aside class="bh-panel" id="panel" aria-label="Controls"></aside>
 <script src="src/config.js"></script>
 <script src="src/physics.js"></script>
 <script src="src/shader.js"></script>
 <script src="src/engine.js"></script>
+<script src="src/editor.js"></script>
 <script>
-  window.__engine = BH.createEngine(document.getElementById('stage'), BH.decodeHash(location.hash), { interactive: true, mobileAuto: true });
+  window.__ed = BH.bootEditor(document.getElementById('stage'), document.getElementById('panel'));
+  window.__engine = __ed.engine;
 </script>
 </body>
 </html>
