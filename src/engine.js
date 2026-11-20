@@ -127,6 +127,15 @@
         });
         gl.uniform4fv(U.uObj, P); gl.uniform4fv(U.uObjInfo, I);
       }
+      if (U.uTeddy) {
+        if (!teddyTex) teddyTex = makeTeddyTexture();
+        var y1 = cfg.view.yaw * RAD + 0.7, el = 35 * RAD;
+        var ax = [Math.sin(y1) * Math.cos(el), Math.sin(el), Math.cos(y1) * Math.cos(el)];
+        gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, teddyTex); gl.uniform1i(U.uTeddyTex, 1);
+        gl.uniform4f(U.uTeddy, ax[0] * ted.r, ax[1] * ted.r, ax[2] * ted.r, 1.2);
+        set3('uTeddyAxis', ax);
+        set3('uTeddyLook', [ted.g, ted.brightness * tedFade, ted.stretch]);
+      }
       for (var i = 0; i < hooks.length; i++) hooks[i](api, { t: t, discT: discT, derived: d, cfg: cfg, camera: c });
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
@@ -151,7 +160,40 @@
       frameN++; frameAcc += dt;
       if (frameAcc > 0.5) { fps = frameN / frameAcc; frameN = 0; frameAcc = 0; }
     }
+    // the teddy falls on the same clock as the disc, a little faster, and starts again when it has faded
+    var ted = BH.teddyStep({ r: 14, r0: 14.5 }, 0), tedFade = 0, teddyTex = null;
+    function stepTeddy(dt) {
+      if (!cfg.toys.teddy) { ted = BH.teddyStep({ r: 14, r0: 14.5 }, 0); tedFade = 0; return; }
+      tedFade = Math.min(1, tedFade + dt / 1.5);
+      ted = BH.teddyStep(ted, dt * 8 * cfg.pace / d.scale);
+      if (ted.done) { ted = BH.teddyStep({ r: 14, r0: 14.5 }, 0); tedFade = 0; }
+    }
+    function makeTeddyTexture() {
+      var cv = document.createElement('canvas'); cv.width = cv.height = 128;
+      var x = cv.getContext('2d');
+      x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '104px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+      x.fillText('\uD83E\uDDF8', 64, 70);
+      var px = x.getImageData(0, 0, 128, 128).data, sum = 0;
+      for (var i = 3; i < px.length; i += 40) sum += px[i];
+      if (sum < 2000) { // no emoji font: draw a simple bear
+        x.clearRect(0, 0, 128, 128); x.fillStyle = '#a8703c';
+        [[64, 40, 24], [42, 20, 11], [86, 20, 11], [64, 88, 30], [34, 74, 10], [94, 74, 10], [46, 116, 11], [82, 116, 11]].forEach(function (c) { x.beginPath(); x.arc(c[0], c[1], c[2], 0, 7); x.fill(); });
+        x.fillStyle = '#e8c39a'; x.beginPath(); x.arc(64, 48, 10, 0, 7); x.fill(); x.beginPath(); x.arc(64, 92, 16, 0, 7); x.fill();
+        x.fillStyle = '#2a1a10'; [[56, 36], [72, 36], [64, 45]].forEach(function (c) { x.beginPath(); x.arc(c[0], c[1], 3, 0, 7); x.fill(); });
+      }
+      var tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      return tex;
+    }
     function step(dt) {
+      stepTeddy(dt);
       t += dt;
       discT += dt * cfg.pace / d.scale * (d.mobile ? 1.35 : 1);
       if (cfg.view.drift) drift += dt * 1.2;
@@ -220,7 +262,7 @@
     var io = null, ro = null;
     if (!gl) { fail('WebGL is not available'); api.destroy = function () {}; return api; }
     canvas.addEventListener('webglcontextlost', function (e) { e.preventDefault(); stop(); api.ok = false; });
-    canvas.addEventListener('webglcontextrestored', function () { prog = null; progKey = ''; quad = null; photoTex = null; photoUrlLoaded = null; if (build()) { loadPhotoUrl(cfg.universe.photo); resize(); draw(); start(); } });
+    canvas.addEventListener('webglcontextrestored', function () { teddyTex = null; prog = null; progKey = ''; quad = null; photoTex = null; photoUrlLoaded = null; if (build()) { loadPhotoUrl(cfg.universe.photo); resize(); draw(); start(); } });
     document.addEventListener('visibilitychange', onVis);
     if (typeof IntersectionObserver === 'function') {
       io = new IntersectionObserver(function (e) { visible = e[0].isIntersecting; visible ? start() : stop(); });

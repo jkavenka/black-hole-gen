@@ -217,6 +217,24 @@
     ' return res;}',
   ].join('\n');
 
+  // The teddy: a picture card in curved space, so it gets lensed like everything else.
+  BH.TEDDY_CHUNK = [
+    'uniform vec4 uTeddy; uniform vec3 uTeddyLook; uniform vec3 uTeddyAxis; uniform sampler2D uTeddyTex;', // pos+size; redshift, brightness, stretch
+    'vec4 teddy(vec3 a,vec3 b){',
+    ' if(uTeddyLook.y<0.002) return vec4(0.0);',
+    ' vec3 c=uTeddy.xyz; vec3 ab=b-a; vec3 n=normalize(uCam-c);',
+    ' float den=dot(ab,n); if(abs(den)<1e-6) return vec4(0.0);',
+    ' float t=dot(c-a,n)/den; if(t<0.0||t>1.0) return vec4(0.0);',
+    ' vec3 p=a+ab*t-c;',
+    ' vec3 ax=normalize(uTeddyAxis-n*dot(uTeddyAxis,n)); vec3 bx=cross(n,ax);',
+    ' vec2 uv=vec2(dot(p,bx)/uTeddy.w, dot(p,ax)/(uTeddy.w*uTeddyLook.z));',
+    ' if(abs(uv.x)>0.5||abs(uv.y)>0.5) return vec4(0.0);',
+    ' vec4 tx=texture2D(uTeddyTex,vec2(uv.x+0.5,0.5-uv.y));',
+    ' float g=uTeddyLook.x;',
+    ' vec3 col=tx.rgb*(0.45+0.55*min(uLightCol,vec3(1.2)))*vec3(1.0,g,g*g)*(0.4+0.6*g);', // reddens and dims as time slows
+    ' return vec4(col,tx.a*clamp(uTeddyLook.y*1.5,0.0,1.0));}',
+  ].join('\n');
+
   // Toys: orbiting objects and the teddy. Code for what isn't used is never emitted.
   BH.toyChunks = function (f) {
     if (!f.objects.length && !f.teddy) return '';

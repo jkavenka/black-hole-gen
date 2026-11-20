@@ -44,6 +44,8 @@
     { group: 'Universe', action: 'link', label: '…or image link', type: 'button', showIf: when('universe.mode', 'photo') },
     { group: 'Universe', key: 'universe.photoSize', label: 'Photo size in the snippet', type: 'select', options: [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], showIf: when('universe.mode', 'photo') },
 
+    { group: 'Toys', key: 'toys.teddy', label: 'Teddy', type: 'toggle', hint: 'Seen from far away, nothing ever quite falls in. It slows, reddens and fades at the edge.' },
+
     { group: 'Quality', key: 'quality', label: 'Quality', type: 'select', options: [['auto', 'Auto'], ['lighter', 'Lighter'], ['sharper', 'Sharper']] },
   ];
 
