@@ -87,7 +87,7 @@
     var target = BH.decodeHash(location.hash), shown = clone(target);
     var engine = BH.createEngine(stage, shown, { interactive: true, mobileAuto: true, onPhotoError: function () { say("Couldn't load that image link (the site may block it). Try uploading the file instead."); } });
     var photoFile = null, lastPhoto = null, rows = [], toyHooks = [];
-    BH.editor = { engine: engine, get: function () { return target; }, set: set, onRender: function (f) { toyHooks.push(f); }, say: say };
+    BH.editor = { engine: engine, get: function () { return target; }, set: set, onRender: function (f) { toyHooks.push(f); }, say: say, refreshHooks: [] };
 
     // ---------- smoothing: approaching and resets are always gradual ----------
     var SLOW = { 'view.closer': 0.5 }, anim = 0, lastT = 0;
@@ -201,6 +201,53 @@
     });
     BH.editor.groups = groups; BH.editor.body = body;
 
+    // ---------- toys: launch objects into orbit ----------
+    if (!groups.Toys) { groups.Toys = el('details', { class: 'bh-group', open: '' }, [el('summary', { text: 'Toys' })]); body.insertBefore(groups.Toys, groups.Quality); }
+    var launch = { shape: 'orb', skin: 'cereal', orbit: 0.5 };
+    var SHAPES = [['orb', 'Orb'], ['star', 'Star'], ['torus', 'Ring']], SKINS = [['rocky', 'Rocky'], ['fluffy', 'Fluffy'], ['cereal', 'Cereal'], ['metal', 'Metal']];
+    BH.editor.shapesReady = { orb: true };
+    function seg(opts, key) {
+      var box = el('div', { class: 'bh-seg' });
+      opts.forEach(function (o) {
+        box.appendChild(el('button', { type: 'button', 'data-v': o[0], text: o[1], onclick: function () { launch[key] = o[0]; paintLauncher(); } }));
+      });
+      return box;
+    }
+    var shapeSeg = seg(SHAPES, 'shape'), skinSeg = seg(SKINS, 'skin');
+    var orbitIn = el('input', { type: 'range', min: 0, max: 1, step: 0.01, value: 0.5, 'aria-label': 'Orbit size' });
+    orbitIn.addEventListener('input', function () { launch.orbit = parseFloat(orbitIn.value); });
+    var launchBtn = el('button', { type: 'button', class: 'bh-btn bh-launch', text: 'Launch into orbit', onclick: function () {
+      var objs = clone(target.toys.objects);
+      if (objs.length >= BH.MAX_OBJECTS || !BH.editor.shapesReady[launch.shape]) return;
+      objs.push({ shape: launch.shape, skin: launch.skin, orbit: launch.orbit, tilt: (Math.random() < 0.5 ? -1 : 1) * Math.round(20 + Math.random() * 20), phase: Math.round(Math.random() * 360) });
+      set('toys.objects', objs);
+    } });
+    var list = el('div', { class: 'bh-objs' });
+    groups.Toys.appendChild(el('div', { class: 'bh-row' }, [el('div', { class: 'bh-label', text: 'Launch an object' }), shapeSeg, el('div', { style: 'height:6px' }), skinSeg]));
+    groups.Toys.appendChild(el('div', { class: 'bh-row' }, [el('div', { class: 'bh-label', text: 'Orbit size' }), orbitIn]));
+    groups.Toys.appendChild(el('div', { class: 'bh-row' }, [launchBtn, el('div', { class: 'bh-hint', text: 'Up to 3 at once. Watch one pass behind the hole: you see it twice.' })]));
+    groups.Toys.appendChild(list);
+    function paintLauncher() {
+      [[shapeSeg, 'shape'], [skinSeg, 'skin']].forEach(function (p) {
+        Array.prototype.forEach.call(p[0].children, function (b) {
+          var v = b.getAttribute('data-v');
+          b.setAttribute('aria-pressed', launch[p[1]] === v ? 'true' : 'false');
+          if (p[1] === 'shape') { var ok = BH.editor.shapesReady[v]; b.disabled = !ok; b.title = ok ? '' : 'Coming soon'; }
+        });
+      });
+      var full = target.toys.objects.length >= BH.MAX_OBJECTS;
+      launchBtn.disabled = full;
+      launchBtn.textContent = full ? 'Orbit is full (3)' : 'Launch into orbit';
+      list.innerHTML = '';
+      target.toys.objects.forEach(function (o, i) {
+        var name = SKINS.filter(function (s) { return s[0] === o.skin; })[0][1] + ' ' + SHAPES.filter(function (s) { return s[0] === o.shape; })[0][1].toLowerCase();
+        list.appendChild(el('div', { class: 'bh-obj' }, [el('span', { text: name }), el('button', { type: 'button', class: 'bh-x', 'aria-label': 'Remove ' + name, text: '×', onclick: function () {
+          var objs = clone(target.toys.objects); objs.splice(i, 1); set('toys.objects', objs);
+        } })]));
+      });
+    }
+    BH.editor.refreshHooks.push(paintLauncher);
+
     function refresh() {
       rows.forEach(function (r) {
         var c = r.c;
@@ -214,7 +261,6 @@
       });
       BH.editor.refreshHooks && BH.editor.refreshHooks.forEach(function (f) { f(target); });
     }
-    BH.editor.refreshHooks = [];
     BH.editor.refresh = refresh;
 
     var fpsOut = el('span', { class: 'bh-fps' });

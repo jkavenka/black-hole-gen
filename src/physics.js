@@ -35,7 +35,7 @@
   };
 
   // How fast the disc turns on screen at radius r. Heavier holes (bigger scale) turn slower.
-  BH.discOmega = function (r, scale, pace) { return pace * 0.6 * Math.pow(r, -1.5) / scale; };
+  BH.discOmega = function (r, scale, pace) { return pace * 1.2 * Math.pow(r, -1.5) / scale; };
 
   // Brightening/colour factor for disc gas at radius r. cosTheta: gas velocity vs direction toward the camera.
   BH.discDoppler = function (r, cosTheta) {

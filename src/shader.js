@@ -90,7 +90,7 @@
     ' vec3 q=vec3(cos(a)*2.2,sin(a)*2.2,log(r)*7.0+seed);',
     ' return fbm(q+vec3(seed*1.7,0.0,0.0));}',
     'float discTurb(float r,float a){',
-    ' float om=0.6*pow(r,-1.5);',
+    ' float om=1.2*pow(r,-1.5);',
     ' float P=30.0; float t1=mod(uDiscTime,P); float t2=mod(uDiscTime+0.5*P,P);',
     ' float w1=1.0-abs(2.0*t1/P-1.0);',  // swap between two copies so the swirl never winds up too tight
     ' return mix(discField(r,a-om*t2,5.0),discField(r,a-om*t1,0.0),w1);}',
@@ -164,7 +164,75 @@
   }
 
   // Toys are filled in by the toys chunk builder (orbiting objects, teddy).
-  BH.toyChunks = BH.toyChunks || function () { return ''; };
+  BH.SKIN_ID = { rocky: 0, fluffy: 1, cereal: 2, metal: 3 };
+  BH.SHAPE_ID = { orb: 0, star: 1, torus: 2 };
+  BH.OBJECT_RADIUS = 0.9;
+  var OBJ_HEAD = [
+    'uniform vec4 uObj[OBJ_COUNT]; uniform vec4 uObjInfo[OBJ_COUNT];', // xyz + bounding radius; skin, shape, spin, seed
+    'vec3 rotY(vec3 p,float a){float c=cos(a),s=sin(a);return vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);}',
+    'vec4 shade(vec3 hp,vec3 n,vec3 rd,vec3 q,float skin){',
+    ' vec3 L=normalize(-hp);',                                   // lit by the glow around the hole
+    ' float dif=max(dot(n,L),0.0)*0.9+abs(n.y)*0.25;',          // plus the disc above/below
+    ' vec3 lit=uLightCol*dif+uFillCol; vec3 col=vec3(0.5); float a=1.0;',
+  ].join('\n');
+  var SKINS = {
+    rocky: [
+    ' if(skin<0.5){ float f=fbm(q*3.0); col=mix(vec3(0.36,0.31,0.27),vec3(0.66,0.58,0.48),f);',
+    '  col*=0.85+0.15*sin(q.y*14.0+f*5.0); float cr=noise(q*7.0);',
+    '  col*=1.0-0.35*smoothstep(0.62,0.72,cr)*(1.0-smoothstep(0.74,0.8,cr)); col*=lit; }'
+    ].join('\n'),
+    fluffy: [
+    ' if(skin>0.5&&skin<1.5){ float f=fbm(q*7.0); col=mix(vec3(0.98,0.78,0.86),vec3(1.0,0.96,0.9),f);',
+    '  float rim=1.0-abs(dot(n,-rd)); a=1.0-smoothstep(0.55,1.0,rim+(fbm(q*16.0)-0.5)*0.6);',
+    '  col=col*(lit*0.9+0.1)+uLightCol*rim*rim*0.9; }'
+    ].join('\n'),
+    cereal: [
+    ' if(skin>1.5&&skin<2.5){ float f=fbm(q*5.0); float b=noise(q*16.0);',
+    '  vec3 nn=normalize(n+(vec3(noise(q*16.0+3.1),noise(q*16.0+7.7),b)-0.5)*0.6);',
+    '  float d2=max(dot(nn,L),0.0)*0.9+abs(nn.y)*0.25;',
+    '  col=mix(vec3(0.85,0.52,0.16),vec3(0.96,0.76,0.4),f)*(0.8+0.3*b)*(uLightCol*d2+uFillCol);',
+    '  if(hash(floor(q*38.0))>0.965) col=vec3(1.0)*(0.6*d2+0.4)*max(uLightCol,vec3(0.6)); }'
+    ].join('\n'),
+    metal: [
+    ' if(skin>2.5){ vec3 r=reflect(rd,n); float fr=0.6+0.4*pow(1.0-max(dot(n,-rd),0.0),3.0);',
+    '  vec3 env=mix(uFillCol*1.5,uLightCol*0.8,smoothstep(-0.3,0.6,dot(r,L)))+uLightCol*pow(max(dot(r,L),0.0),24.0)*2.5',
+    '   +uLightCol*0.4*smoothstep(0.7,1.0,abs(r.y));',
+    '  col=vec3(0.85,0.87,0.9)*env*fr; }'
+    ].join('\n')
+  };
+  var OBJ_TAIL = [    ' return vec4(col,a);}',
+    'vec4 objects(vec3 a,vec3 b){',
+    ' vec3 ab=b-a; float L=length(ab); vec3 rd=ab/L; float best=1e9; vec4 res=vec4(0.0);',
+    ' for(int i=0;i<OBJ_COUNT;i++){',
+    '  vec3 c=uObj[i].xyz; float R=uObj[i].w;',
+    '  vec3 oc=a-c; float bq=dot(oc,rd); float cq=dot(oc,oc)-R*R; float dd=bq*bq-cq;',
+    '  if(dd<0.0) continue;',
+    '  float t=-bq-sqrt(dd);',
+    '  if(t<0.0||t>L||t>best) continue;',
+    '  vec3 hp=a+rd*t; vec3 n=normalize(hp-c);',
+    '  vec3 q=rotY(n,uObjInfo[i].z)+uObjInfo[i].w;',
+    '  best=t; res=shade(hp,n,rd,q,uObjInfo[i].x);',
+    '  res.a*=smoothstep(1.0,3.0,length(hp-uCam));',            // fade out rather than hit the camera
+    ' }',
+    ' return res;}',
+  ].join('\n');
+
+  // Toys: orbiting objects and the teddy. Code for what isn't used is never emitted.
+  BH.toyChunks = function (f) {
+    if (!f.objects.length && !f.teddy) return '';
+    var out = ['uniform vec3 uLightCol; uniform vec3 uFillCol;'];
+    if (f.objects.length) {
+      var used = {};
+      f.objects.forEach(function (o) { used[o.skin] = 1; });
+      out.push(OBJ_HEAD, Object.keys(SKINS).filter(function (k) { return used[k]; }).map(function (k) { return SKINS[k]; }).join('\n'), OBJ_TAIL);
+    }
+    if (f.teddy && BH.TEDDY_CHUNK) out.push(BH.TEDDY_CHUNK);
+    out.push('vec4 toys(vec3 a,vec3 b){ vec4 r=vec4(0.0);');
+    if (f.objects.length) out.push(' r=objects(a,b);');
+    if (f.teddy && BH.TEDDY_CHUNK) out.push(' vec4 td=teddy(a,b); if(td.a>r.a) r=td;');
+    out.push(' return r;}');
+    return out.join('\n');
+  };
 
   BH.buildFragmentShader = function (f) {
     var s = STEPS[f.quality] || STEPS.auto, defs = [];

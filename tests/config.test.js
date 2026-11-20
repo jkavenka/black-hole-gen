@@ -17,7 +17,7 @@ test('normalize clamps ranges and caps objects at 3 with defaults filled', () =>
     assert.equal(o.shape, 'orb');
     assert.equal(o.skin, 'rocky');
     assert.equal(o.orbit, 0.5);
-    assert.equal(o.tilt, 10);
+    assert.equal(o.tilt, 25);
     assert.ok(o.phase >= 0 && o.phase < 360);
   }
 });
@@ -72,10 +72,11 @@ test('derive: phone viewport scales by 1.35', () => {
   assert.ok(Math.abs(phone.scale - desk.scale * 1.35) < 1e-9);
 });
 
-test('derive: toy orbit radius sits outside the disc', () => {
+test('toy orbits sit between 6 and 18, well inside the calm camera distance', () => {
   const d = BH.derive(BH.normalize({ disc: { width: 1 } }), { w: 1000, h: 800 });
-  assert.equal(BH.toyOrbitRadius(0, d), d.discOuter + 3);
-  assert.equal(BH.toyOrbitRadius(1, d), d.discOuter + 18);
+  assert.equal(BH.toyOrbitRadius(0, d), 6);
+  assert.equal(BH.toyOrbitRadius(1, d), 18);
+  assert.ok(BH.toyOrbitRadius(1, d) < BH.derive(BH.DEFAULTS, { w: 1000, h: 800 }).distance - 8);
 });
 
 test('encodeHash never contains a data: photo', () => {

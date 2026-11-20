@@ -112,6 +112,21 @@
         var aspect = photoTex.aspect || 1.5, ph = 2.2 * Math.tan(BH.derive(cfg, { w: W, h: H }).fovY / 2) * 1.15;
         if (U.uPhotoSize) gl.uniform2f(U.uPhotoSize, Math.max(ph * aspect, ph * W / H), Math.max(ph, ph * W / H / aspect));
       }
+      if (U.uLightCol) {
+        var lc = dc.colorMode === 'custom' ? rgb(dc.colorA).map(function (v, i) { return v * 0.7 + rgb(dc.colorB)[i] * 0.3; }) : [1.0, 0.78, 0.55];
+        var k = dc.brightness * (0.35 + 0.9 * dc.amount);
+        set3('uLightCol', lc.map(function (v) { return v * k; }));
+        set3('uFillCol', un.mode === 'plain' ? rgb(un.plain).map(function (v) { return v * 0.4; }) : un.mode === 'photo' ? [0.12, 0.11, 0.1] : [0.035, 0.035, 0.055]);
+      }
+      if (U.uObj) {
+        var P = [], I = [];
+        cfg.toys.objects.forEach(function (o, i) {
+          var p = BH.orbitPosition(BH.toyOrbitRadius(o.orbit), o.tilt, o.phase, discT, 1, 1);
+          P.push(p[0], p[1], p[2], BH.OBJECT_RADIUS);
+          I.push(BH.SKIN_ID[o.skin], BH.SHAPE_ID[o.shape], t * 0.25 + i * 2.1, i * 13.7 + 1.3);
+        });
+        gl.uniform4fv(U.uObj, P); gl.uniform4fv(U.uObjInfo, I);
+      }
       for (var i = 0; i < hooks.length; i++) hooks[i](api, { t: t, discT: discT, derived: d, cfg: cfg, camera: c });
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }

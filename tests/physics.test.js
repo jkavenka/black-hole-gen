@@ -14,6 +14,11 @@ test('weak-field deflection is about 2/b', () => {
   assert.ok(Math.abs(d - 2 / 200) / (2 / 200) < 0.1, 'deflection ' + d);
 });
 
+test('inner disc turns once in about half a minute at calm settings', () => {
+  const period = 2 * Math.PI / BH.discOmega(3, 1, 1);
+  assert.ok(period > 20 && period < 35, 'period ' + period);
+});
+
 test('disc spins faster inside, slower when heavier', () => {
   assert.ok(BH.discOmega(3, 1, 1) > BH.discOmega(6, 1, 1));
   assert.ok(BH.discOmega(6, 2, 1) < BH.discOmega(6, 1, 1));

@@ -48,7 +48,7 @@
     shape: ['orb', ['orb', 'star', 'torus']],
     skin: ['rocky', ['rocky', 'fluffy', 'cereal', 'metal']],
     orbit: [0.5, 0, 1],
-    tilt: [10, -45, 45],
+    tilt: [25, -45, 45],
     phase: [0, 'angle'],
   };
   var MAX_OBJECTS = 3;
@@ -135,5 +135,5 @@
       mobile: mobile,
     };
   };
-  BH.toyOrbitRadius = function (orbit, derived) { return derived.discOuter + 3 + orbit * 15; };
+  BH.toyOrbitRadius = function (orbit) { return 6 + orbit * 12; }; // inside the calm camera distance; toys pass through the glow and behind the hole
 });

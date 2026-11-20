@@ -58,6 +58,12 @@
   .bh-primary:hover { border-color: transparent; filter: brightness(1.06); }
   .bh-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 6px; }
   .bh-calm { grid-column: 1 / -1; }
+  .bh-launch { width: 100%; }
+  .bh-btn:disabled, .bh-seg button:disabled { opacity: .4; cursor: default; }
+  .bh-objs { display: grid; gap: 4px; padding: 2px 0 6px; }
+  .bh-obj { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.04); }
+  .bh-x { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
+  .bh-x:hover { color: var(--text); }
   .bh-fps { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 
   @media (max-width: 700px) {
