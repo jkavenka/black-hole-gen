@@ -127,10 +127,11 @@
     // The view widens as you approach, so the shadow grows from 1/5 of the frame to at most 4/5 — never a black screen.
     var shadow = Math.asin(Math.min(1, 1.5 * Math.sqrt(3) / D * Math.sqrt(1 - 1 / D)));
     var frac = Math.min(0.8, (0.2 + 0.35 * ease) * scale);
+    if (viewport.h > viewport.w) frac *= viewport.w / viewport.h; // portrait: size it by the shorter side
     return {
       distance: D,
       scale: scale,
-      fovY: 2 * shadow / frac,
+      fovY: Math.min(2.0, 2 * shadow / frac), // never wider than ~115°: no fish-eye
       discOuter: 8 + 22 * cfg.disc.width,
       mobile: mobile,
     };

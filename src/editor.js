@@ -280,6 +280,34 @@
       el('button', { type: 'button', class: 'bh-btn', text: 'Download .html', 'data-act': 'download' }),
     ]);
     BH.editor.actions = actions;
+    function exportPhoto() {
+      var ph = target.universe.photo;
+      if (target.universe.mode !== 'photo' || !ph) return null;
+      return /^data:/.test(ph) ? { dataUrl: ph } : { url: ph };
+    }
+    function sizeNote(text) {
+      var n = BH.snippetBytes(text);
+      return kb(n) + (n > 400e3 ? '. That\'s heavy for a web page: try a smaller photo size or an image link.' : '');
+    }
+    actions.addEventListener('click', function (e) {
+      var act = e.target.getAttribute && e.target.getAttribute('data-act');
+      if (!act || !BH.buildSnippet) return;
+      if (act === 'copy') {
+        var snip = BH.buildSnippet(target, exportPhoto());
+        var done = function () { say('Snippet copied (' + sizeNote(snip) + '). Paste it into a Tilda Zero Block HTML element.'); };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(snip).then(done, function () { fallbackCopy(snip); done(); });
+        else { fallbackCopy(snip); done(); }
+      } else if (act === 'download') {
+        var html = BH.buildStandaloneHtml(target, exportPhoto());
+        var a = el('a', { href: URL.createObjectURL(new Blob([html], { type: 'text/html' })), download: 'black-hole.html' });
+        document.body.appendChild(a); a.click(); setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+        say('Downloaded black-hole.html (' + sizeNote(html) + ').');
+      }
+    });
+    function fallbackCopy(text) {
+      var ta = el('textarea', { style: 'position:fixed;left:-9999px' }); ta.value = text; document.body.appendChild(ta);
+      ta.select(); try { document.execCommand('copy'); } catch (err) { /* nothing else to try */ } ta.remove();
+    }
     var toggle = el('button', { type: 'button', class: 'bh-toggle', 'aria-label': 'Show or hide controls', text: '☰', onclick: function () { panel.classList.toggle('bh-collapsed'); } });
     panel.appendChild(toggle);
     panel.appendChild(el('div', { class: 'bh-inner' }, [el('h1', { text: 'Black hole' }), msg, body, actions, fileIn]));

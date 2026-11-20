@@ -58,7 +58,7 @@ test('derive: the shadow never fills more than 4/5 of the frame', () => {
     const d = BH.derive(BH.normalize({ mass, view: { closer } }), { w: 375, h: 700 });
     const shadow = 2 * Math.asin(1.5 * Math.sqrt(3) / d.distance * Math.sqrt(1 - 1 / d.distance));
     assert.ok(shadow / d.fovY <= 0.8 + 1e-9, `closer ${closer} mass ${mass}: ${shadow / d.fovY}`);
-    assert.ok(d.fovY < 2.6);
+    assert.ok(d.fovY <= 2.0 + 1e-9, `closer ${closer} mass ${mass}: fov ${d.fovY}`);
   }
   const calm = BH.derive(BH.DEFAULTS, { w: 1440, h: 900 });
   assert.ok(Math.abs(calm.fovY - 0.852) < 0.01);
@@ -85,4 +85,11 @@ test('encodeHash never contains a data: photo', () => {
   assert.equal(back.universe.photo, null);
   const cfg2 = BH.normalize({ universe: { mode: 'photo', photo: 'https://example.com/a.jpg' } });
   assert.equal(BH.decodeHash(BH.encodeHash(cfg2)).universe.photo, 'https://example.com/a.jpg');
+});
+
+test('portrait phones frame the hole by the shorter side (width)', () => {
+  const d = BH.derive(BH.DEFAULTS, { w: 375, h: 812 });
+  const shadow = 2 * Math.asin(1.5 * Math.sqrt(3) / d.distance * Math.sqrt(1 - 1 / d.distance));
+  const ofWidth = (shadow / d.fovY) * 812 / 375;
+  assert.ok(Math.abs(ofWidth - 0.27) < 0.01, 'shadow is ' + ofWidth + ' of the width');
 });
