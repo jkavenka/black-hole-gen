@@ -9,6 +9,7 @@
     mass: [0.5, 0, 1],
     glow: [0.8, 0, 1],
     pace: [1, 0.25, 2],
+    time: [0, -1, 12], // speed of time: 10^time (0 = ×1, 12 = ×1 trillion)
     quality: ['auto', ['auto', 'lighter', 'sharper']],
     disc: {
       amount: [0.6, 0, 1],
@@ -24,8 +25,9 @@
       tilt: [80, 0, 89],
       yaw: [0, 'angle'],
       drift: [true, 'bool'],
-      x: [0.5, 0, 1],
-      y: [0.5, 0, 1],
+      zoom: [1, 0.5, 4],
+      x: [0.5, -0.5, 1.5],
+      y: [0.5, -0.5, 1.5],
     },
     universe: {
       mode: ['stars', ['stars', 'plain', 'photo']],
@@ -46,7 +48,7 @@
   };
   var OBJECT = {
     shape: ['orb', ['orb', 'star', 'torus']],
-    skin: ['rocky', ['rocky', 'fluffy', 'cereal', 'metal']],
+    skin: ['rocky', ['rocky', 'bubbly', 'cereal', 'metal']],
     orbit: [0.5, 0, 1],
     tilt: [25, -45, 45],
     phase: [0, 'angle'],
@@ -66,7 +68,11 @@
     if (kind === 'photo') return typeof v === 'string' && /^(data:image\/[a-z+.-]+;base64,[A-Za-z0-9+\/=]+|https?:\/\/[^\s<>"'`\\]+)$/.test(v) ? v : null;
     if (kind === 'objects') {
       if (!Array.isArray(v)) return [];
-      return v.slice(0, MAX_OBJECTS).map(function (o) { return group(OBJECT, o && typeof o === 'object' ? o : {}); });
+      return v.slice(0, MAX_OBJECTS).map(function (o) {
+        o = o && typeof o === 'object' ? o : {};
+        if (o.skin === 'fluffy') o = Object.assign({}, o, { skin: 'bubbly' }); // fluffy became bubbly
+        return group(OBJECT, o);
+      });
     }
     if (typeof v !== 'number' || !isFinite(v)) return def;
     return Math.min(spec[2], Math.max(kind, v));
@@ -127,12 +133,17 @@
     var ease = smoothstep(0, 1, cfg.view.closer), D = 30 + (6 - 30) * ease;
     // The view widens as you approach, so the shadow grows from 1/5 of the frame to at most 4/5 — never a black screen.
     var shadow = Math.asin(Math.min(1, 1.5 * Math.sqrt(3) / D * Math.sqrt(1 - 1 / D)));
-    var frac = Math.min(0.8, (0.2 + 0.35 * ease) * scale);
-    if (viewport.h > viewport.w) frac *= viewport.w / viewport.h; // portrait: size it by the shorter side
+    var short = viewport.h > viewport.w ? viewport.w / viewport.h : 1; // portrait: size it by the shorter side
+    var frac = Math.min(0.8, (0.2 + 0.35 * ease) * scale) * short;
+    var base = Math.min(2.0, 2 * shadow / frac); // never wider than ~115°: no fish-eye
+    // Zoom is a camera lens (it magnifies), not a step closer. It stops before the shadow fills 85% of the frame.
+    var fov = 2 * Math.atan(Math.tan(base / 2) / (cfg.view.zoom || 1));
+    fov = Math.min(2.0, Math.max(fov, 2 * shadow / (0.85 * short)));
     return {
       distance: D,
       scale: scale,
-      fovY: Math.min(2.0, 2 * shadow / frac), // never wider than ~115°: no fish-eye
+      fovY: fov,
+      baseFovY: base,
       discOuter: 8 + 22 * cfg.disc.width,
       mobile: mobile,
     };

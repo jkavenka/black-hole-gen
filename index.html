@@ -64,12 +64,15 @@
   .bh-obj { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; border-radius: 8px; background: rgba(255,255,255,.04); }
   .bh-x { border: 0; background: none; color: var(--muted); font-size: 16px; line-height: 1; cursor: pointer; padding: 0 2px; }
   .bh-x:hover { color: var(--text); }
+  .bh-clock { position: fixed; left: 16px; bottom: 16px; max-width: min(440px, calc(100vw - 368px)); padding: 10px 12px; border-radius: 12px; background: rgba(14, 12, 22, 0.6); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border: 1px solid var(--line); pointer-events: none; display: grid; gap: 4px; font-size: 12.5px; }
+  .bh-clock b { color: var(--accent); font-weight: 600; }
   .bh-fps { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
 
   @media (max-width: 700px) {
     .bh-panel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 52vh; }
     .bh-inner { border-radius: 16px 16px 0 0; border-bottom: 0; }
     .bh-panel.bh-collapsed .bh-inner { transform: translateY(24px); }
+    .bh-clock { top: 12px; bottom: auto; left: 12px; right: 12px; max-width: none; }
   }
   @media (prefers-reduced-motion: reduce) { .bh-inner { transition: none; } }
 </style>

@@ -15,9 +15,9 @@
 
   // The panel, in plain words. Hints explain the real thing for the curious.
   BH.CONTROLS = [
-    { group: 'Black hole', key: 'mass', label: 'How heavy', type: 'slider', min: 0, max: 1, step: 0.01, hint: 'Heavier holes look bigger and turn more slowly.' },
+    { group: 'Black hole', key: 'mass', label: 'How heavy', type: 'slider', min: 0, max: 1, step: 0.01, hint: 'Heavier holes look bigger and turn more slowly.',
+      liveHint: function (c) { return 'As heavy as ' + plainNumber(BH.massSuns(c.mass)) + ' Suns. Heavier holes look bigger and turn more slowly.'; } },
     { group: 'Black hole', key: 'glow', label: 'One-side glow', type: 'slider', min: 0, max: 1, step: 0.01, hint: 'Gas racing toward you looks brighter. Real black holes do this.' },
-    { group: 'Black hole', key: 'pace', label: 'Pace', type: 'slider', min: 0.25, max: 2, step: 0.05 },
 
     { group: 'Disc', key: 'disc.amount', label: 'How hungry', type: 'slider', min: 0, max: 1, step: 0.01, hint: 'How much glowing gas is swirling in.' },
     { group: 'Disc', key: 'disc.brightness', label: 'Brightness', type: 'slider', min: 0, max: 2, step: 0.01 },
@@ -30,8 +30,13 @@
     { group: 'View', key: 'view.closer', label: 'Come closer', type: 'slider', min: 0, max: 1, step: 0.01, hint: 'Never closer than a safe orbit.' },
     { group: 'View', key: 'view.tilt', label: 'Tilt', type: 'slider', min: 0, max: 89, step: 1, hint: 'From above ↔ from the side. You can also drag the picture.' },
     { group: 'View', key: 'view.drift', label: 'Drift slowly around', type: 'toggle' },
-    { group: 'View', key: 'view.x', label: 'Position: across', type: 'slider', min: 0, max: 1, step: 0.01 },
-    { group: 'View', key: 'view.y', label: 'Position: up / down', type: 'slider', min: 0, max: 1, step: 0.01 },
+    { group: 'View', key: 'view.zoom', label: 'Zoom', type: 'slider', min: 0.5, max: 4, step: 0.01, fmt: function (v) { return '×' + v.toFixed(1); },
+      hint: 'A camera lens, not a step closer. Pinch or scroll to zoom, two fingers (or Shift-drag) to move it around.' },
+    { group: 'View', key: 'view.x', label: 'Position: across', type: 'slider', min: -0.5, max: 1.5, step: 0.01 },
+    { group: 'View', key: 'view.y', label: 'Position: up / down', type: 'slider', min: -0.5, max: 1.5, step: 0.01 },
+
+    { group: 'Time', key: 'time', label: 'Speed of time', type: 'slider', min: -1, max: 12, step: 0.05, fmt: function (v) { return BH.timeLabel(v); },
+      liveHint: function (c, e) { var i = e && e.timeInfo && e.timeInfo(); return i ? '1 second here = ' + BH.plainDuration(i.realPerSecond) + ' there.' : ''; } },
 
     { group: 'Universe', key: 'universe.mode', label: 'Sky', type: 'select', options: [['stars', 'Stars'], ['plain', 'Plain colour'], ['photo', 'My photo']] },
     { group: 'Universe', key: 'universe.stars', label: 'Stars', type: 'slider', min: 0, max: 1, step: 0.01, showIf: when('universe.mode', 'stars') },
@@ -44,10 +49,27 @@
     { group: 'Universe', action: 'link', label: '…or image link', type: 'button', showIf: when('universe.mode', 'photo') },
     { group: 'Universe', key: 'universe.photoSize', label: 'Photo size in the snippet', type: 'select', options: [['small', 'Small'], ['medium', 'Medium'], ['large', 'Large']], showIf: when('universe.mode', 'photo') },
 
-    { group: 'Toys', key: 'toys.teddy', label: 'Teddy', type: 'toggle', hint: 'Seen from far away, nothing ever quite falls in. It slows, reddens and fades at the edge.' },
+    { group: 'Toys', key: 'toys.teddy', label: 'Teddy', type: 'toggle', hint: 'Seen from far away, nothing ever quite falls in. It slows, stretches, reddens and fades at the edge. Slow time down to watch the last moment.' },
 
     { group: 'Quality', key: 'quality', label: 'Quality', type: 'select', options: [['auto', 'Auto'], ['lighter', 'Lighter'], ['sharper', 'Sharper']] },
   ];
+
+  function plainNumber(n) {
+    if (n < 1e4) return Math.round(n).toLocaleString('en');
+    var w = [[1e12, 'trillion'], [1e9, 'billion'], [1e6, 'million'], [1e3, 'thousand']];
+    for (var i = 0; i < w.length; i++) if (n >= w[i][0]) { var v = n / w[i][0]; return (v < 10 ? Math.round(v * 10) / 10 : Math.round(v)) + ' ' + w[i][1]; }
+    return String(Math.round(n));
+  }
+  BH.plainNumber = plainNumber;
+  // ×0.1 … ×1 trillion, in words
+  BH.timeLabel = function (v) {
+    var x = Math.pow(10, v);
+    if (x < 0.95) return '×' + (Math.round(x * 10) / 10);
+    if (x < 1e6) { var r = x < 10 ? Math.round(x * 10) / 10 : Math.round(x / Math.pow(10, Math.floor(Math.log10(x)) - 1)) * Math.pow(10, Math.floor(Math.log10(x)) - 1); return '×' + r.toLocaleString('en'); }
+    var w = [[1e12, 'trillion'], [1e9, 'billion'], [1e6, 'million']];
+    for (var i = 0; i < w.length; i++) if (x >= w[i][0] * 0.95) return '×' + Math.round(x / w[i][0]) + ' ' + w[i][1];
+  };
+  BH.SKIN_CHOICES = [['rocky', 'Rocky'], ['bubbly', 'Bubbly'], ['cereal', 'Cereal'], ['metal', 'Metal']];
 
   var PHOTO_SIZES = { small: [800, 0.7], medium: [1200, 0.8], large: [1600, 0.85] };
 
@@ -198,16 +220,17 @@
         row.appendChild(el('div', { class: 'bh-label', text: c.label }));
         row.appendChild(link);
       }
-      if (c.hint) row.appendChild(el('div', { class: 'bh-hint', text: c.hint }));
+      var hintEl = c.hint || c.liveHint ? el('div', { class: 'bh-hint', text: c.hint || '' }) : null;
+      if (hintEl) row.appendChild(hintEl);
       groups[c.group].appendChild(row);
-      rows.push({ c: c, row: row, input: input, out: out });
+      rows.push({ c: c, row: row, input: input, out: out, hint: hintEl });
     });
     BH.editor.groups = groups; BH.editor.body = body;
 
     // ---------- toys: launch objects into orbit ----------
     if (!groups.Toys) { groups.Toys = el('details', { class: 'bh-group', open: '' }, [el('summary', { text: 'Toys' })]); body.insertBefore(groups.Toys, groups.Quality); }
     var launch = { shape: 'orb', skin: 'cereal', orbit: 0.5 };
-    var SHAPES = [['orb', 'Orb'], ['star', 'Star'], ['torus', 'Ring']], SKINS = [['rocky', 'Rocky'], ['fluffy', 'Fluffy'], ['cereal', 'Cereal'], ['metal', 'Metal']];
+    var SHAPES = [['orb', 'Orb'], ['star', 'Star'], ['torus', 'Ring']], SKINS = BH.SKIN_CHOICES;
     BH.editor.shapesReady = { orb: true, star: true, torus: true };
     function seg(opts, key) {
       var box = el('div', { class: 'bh-seg' });
@@ -257,7 +280,8 @@
         r.row.style.display = c.showIf && !c.showIf(target) ? 'none' : '';
         if (!c.key) return;
         var v = get(target, c.key);
-        if (c.type === 'slider') { if (document.activeElement !== r.input) r.input.value = v; r.out.textContent = c.max > 2 ? Math.round(v) + '°' : c.max === 2 ? v.toFixed(2).replace(/0$/, '') + '×' : Math.round(v * 100) + '%'; }
+        if (r.c.liveHint && r.hint) r.hint.textContent = r.c.liveHint(target, engine);
+        if (c.type === 'slider') { if (document.activeElement !== r.input) r.input.value = v; r.out.textContent = c.fmt ? c.fmt(v) : c.max > 2 ? Math.round(v) + '°' : c.max === 2 ? v.toFixed(2).replace(/0$/, '') + '×' : Math.round(v * 100) + '%'; }
         else if (c.type === 'toggle') r.input.checked = v;
         else if (c.type === 'color') r.input.value = v;
         else if (c.type === 'select') Array.prototype.forEach.call(r.input.children, function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-v') === v ? 'true' : 'false'); });
@@ -315,20 +339,99 @@
     say('');
     refresh();
 
-    // ---------- drag to rotate ----------
-    var drag = null;
-    stage.addEventListener('pointerdown', function (e) { drag = { x: e.clientX, y: e.clientY, yaw: target.view.yaw, tilt: target.view.tilt }; stage.setPointerCapture(e.pointerId); stage.classList.add('bh-grab'); });
+    // ---------- gestures: drag turns it, pinch/wheel zooms, two fingers or Shift-drag move it ----------
+    function vp() { return { w: stage.clientWidth || 1, h: stage.clientHeight || 1 }; }
+    function commitView(next) { target = BH.normalize(next); kick(); refresh(); clearTimeout(hashTimer); hashTimer = setTimeout(function () { history.replaceState(null, '', BH.encodeHash(target) || location.pathname); }, 200); }
+    // zoom by factor k around a screen point, so what's under your fingers stays put
+    function zoomAt(k, cx, cy) {
+      var v = vp(), next = clone(target);
+      next.view.zoom = Math.max(0.5, Math.min(4, target.view.zoom * k));
+      var t1 = Math.tan(BH.derive(target, v).fovY / 2), t2 = Math.tan(BH.derive(BH.normalize(next), v).fovY / 2), m = t1 / t2;
+      var hx = target.view.x * v.w, hy = target.view.y * v.h;
+      next.view.x = (cx - (cx - hx) * m) / v.w; next.view.y = (cy - (cy - hy) * m) / v.h;
+      commitView(next);
+    }
+    function panBy(dx, dy) { var v = vp(), next = clone(target); next.view.x += dx / v.w; next.view.y += dy / v.h; commitView(next); }
+    function local(e) { var b = stage.getBoundingClientRect(); return [e.clientX - b.left, e.clientY - b.top]; }
+
+    var lastPad = 0;
+    stage.addEventListener('wheel', function (e) {
+      e.preventDefault();
+      var p = local(e), now = Date.now(), dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY, dx = e.deltaMode === 1 ? e.deltaX * 16 : e.deltaX;
+      if (e.ctrlKey) return zoomAt(Math.exp(-dy * 0.01), p[0], p[1]); // touchpad pinch (and Ctrl+wheel)
+      // a touchpad scrolls sideways too and in small uneven steps; a mouse wheel clicks in big even ones
+      if (dx !== 0 || (e.deltaMode === 0 && Math.abs(dy) < 40 && dy % 1 !== 0)) lastPad = now;
+      if (now - lastPad < 800) panBy(-dx, -dy);
+      else zoomAt(Math.exp(-dy * 0.0015), p[0], p[1]);
+    }, { passive: false });
+    var gScale = 1; // Safari's own pinch events
+    stage.addEventListener('gesturestart', function (e) { e.preventDefault(); gScale = 1; });
+    stage.addEventListener('gesturechange', function (e) { e.preventDefault(); var p = local(e); zoomAt(e.scale / gScale, p[0], p[1]); gScale = e.scale; });
+
+    var pts = {}, drag = null, pinch = null;
+    function two() { var k = Object.keys(pts); return k.length === 2 ? [pts[k[0]], pts[k[1]]] : null; }
+    stage.addEventListener('pointerdown', function (e) {
+      pts[e.pointerId] = local(e); stage.setPointerCapture(e.pointerId); stage.classList.add('bh-grab');
+      var t2 = two();
+      if (t2) { drag = null; pinch = { d: Math.hypot(t2[0][0] - t2[1][0], t2[0][1] - t2[1][1]), c: [(t2[0][0] + t2[1][0]) / 2, (t2[0][1] + t2[1][1]) / 2] }; return; }
+      drag = { x: e.clientX, y: e.clientY, yaw: target.view.yaw, tilt: target.view.tilt, pan: e.shiftKey || e.altKey || e.button === 1, last: local(e) };
+    });
     stage.addEventListener('pointermove', function (e) {
+      if (!pts[e.pointerId]) return;
+      pts[e.pointerId] = local(e);
+      var t2 = two();
+      if (pinch && t2) {
+        var dd = Math.hypot(t2[0][0] - t2[1][0], t2[0][1] - t2[1][1]), c = [(t2[0][0] + t2[1][0]) / 2, (t2[0][1] + t2[1][1]) / 2];
+        panBy(c[0] - pinch.c[0], c[1] - pinch.c[1]);
+        if (pinch.d > 0) zoomAt(dd / pinch.d, c[0], c[1]);
+        pinch = { d: dd, c: c };
+        return;
+      }
       if (!drag) return;
+      if (drag.pan) { var p = local(e); panBy(p[0] - drag.last[0], p[1] - drag.last[1]); drag.last = p; return; }
       var k = 180 / Math.max(stage.clientHeight, 1);
       var next = clone(target);
       next.view.yaw = drag.yaw - (e.clientX - drag.x) * k;
       next.view.tilt = Math.max(0, Math.min(89, drag.tilt - (e.clientY - drag.y) * k * 0.6));
       target = BH.normalize(next); kick(); refresh();
     });
-    function endDrag() { if (!drag) return; drag = null; stage.classList.remove('bh-grab'); set(null); }
+    function endDrag(e) {
+      delete pts[e.pointerId];
+      if (Object.keys(pts).length < 2) pinch = null;
+      if (Object.keys(pts).length) return;
+      if (!drag && !pinch) { stage.classList.remove('bh-grab'); set(null); return; }
+      drag = null; stage.classList.remove('bh-grab'); set(null);
+    }
     stage.addEventListener('pointerup', endDrag);
     stage.addEventListener('pointercancel', endDrag);
+
+    // ---------- time read-out: what has happened "there" while time runs fast or slow ----------
+    var clock = el('div', { class: 'bh-clock', 'aria-live': 'polite' });
+    document.body.appendChild(clock);
+    var since = null; // where the clock stood when you left ×1
+    var TOY_KG = { rocky: 1, bubbly: 1e-4, cereal: 1e-3, metal: 1 };
+    function toyName(o) { return (SKINS.filter(function (s) { return s[0] === o.skin; })[0] || ['', ''])[1].toLowerCase() + ' ' + (SHAPES.filter(function (s) { return s[0] === o.shape; })[0] || ['', ''])[1].toLowerCase(); }
+    function paintClock() {
+      var c = target, info = engine.timeInfo && engine.timeInfo();
+      if (!info || Math.abs(c.time) < 0.02) { since = null; clock.style.display = 'none'; return; }
+      if (!since) since = { real: info.real, discT: info.discT };
+      var lines = [['Time passed there', BH.plainDuration(info.real - since.real)]];
+      c.toys.objects.forEach(function (o) {
+        var R = BH.toyOrbitRadius(o.orbit), turns = BH.discOmega(R, 1, 1) * (info.discT - since.discT) / (2 * Math.PI);
+        var y = BH.inspiralYears(BH.massSuns(c.mass), R, TOY_KG[o.skin] || 1);
+        lines.push([cap(toyName(o)), (turns < 1 ? 'less than one lap' : plainNumber(Math.floor(turns)) + (Math.floor(turns) === 1 ? ' lap' : ' laps')) + '. Still going round: to spiral in it would need ' + BH.plainDuration(y * 3.15576e7) + ' (the universe is 14 billion years old).']);
+      });
+      if (c.toys.teddy) {
+        var own = BH.plainDuration(BH.teddyOwnWatch(9.5) * 9.85e-6 * BH.massSuns(c.mass));
+        var ts = engine.teddyState ? engine.teddyState() : { done: false };
+        lines.push(['Teddy', ts.done ? 'From here it never crosses: it froze at the edge and faded, and stays that way. On its own watch it fell in after ' + own + '.' : 'Falling. Its own watch will say ' + own + ' when it crosses; from here, never.']);
+      }
+      clock.style.display = '';
+      clock.innerHTML = '';
+      lines.forEach(function (l) { clock.appendChild(el('div', {}, [el('b', { text: l[0] + ': ' }), el('span', { text: l[1] })])); });
+    }
+    function cap(t) { return t.charAt(0).toUpperCase() + t.slice(1); }
+    setInterval(function () { paintClock(); rows.forEach(function (r) { if (r.c.key === 'time' && r.hint) r.hint.textContent = r.c.liveHint(target, engine); }); }, 250);
     window.addEventListener('hashchange', function () { var c = BH.decodeHash(location.hash); if (JSON.stringify(c) !== JSON.stringify(BH.normalize(Object.assign({}, target, { universe: Object.assign({}, target.universe, { photo: /^data:/.test(target.universe.photo || '') ? null : target.universe.photo }) })))) BH.editor.setAll(c); });
     return BH.editor;
   };

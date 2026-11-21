@@ -14,6 +14,7 @@
       objects: cfg.toys.objects.map(function (o) { return { shape: o.shape, skin: o.skin }; }),
       teddy: !!cfg.toys.teddy,
       quality: cfg.quality,
+      deriv: false, // set by the engine when the GPU can measure how fast things change across pixels
     };
   };
 
@@ -67,6 +68,10 @@
     'vec3 universe(vec3 d){',
     '#ifdef PHOTO_PANO',
     ' vec2 uv=vec2(atan(d.x,-d.z)/6.2831853+0.5, acos(clamp(d.y,-1.0,1.0))/3.1415927);',
+    '#ifdef HAS_DERIV',
+    ' float u2=fract(uv.x+0.5)-0.5;', // same place, seam on the other side: use whichever is smooth here
+    ' uv.x=fwidth(uv.x)<=fwidth(u2)+1e-6?uv.x:u2;',
+    '#endif',
     '#else',
     ' float f=dot(d,uPhotoFwd);',
     ' vec2 q=vec2(dot(d,uPhotoRight),dot(d,uPhotoUp))/max(abs(f),0.05);', // gnomonic plate; behind you it mirrors back
@@ -80,7 +85,7 @@
   // ---------- accretion disc ----------
   var DISC = [
     'uniform float uDiscAmount; uniform float uDiscBright; uniform float uDiscOuter; uniform float uTurb; uniform float uGlow;',
-    'uniform vec3 uColA; uniform vec3 uColB; uniform float uColorMode; uniform float uDiscTime;',
+    'uniform vec3 uColA; uniform vec3 uColB; uniform float uColorMode; uniform float uDiscTime; uniform float uDiscStep;',
     'vec3 bb(float x){x=clamp(x,0.0,1.6);',
     ' vec3 c=mix(vec3(0.3,0.04,0.01),vec3(1.0,0.42,0.1),smoothstep(0.0,0.45,x));',
     ' c=mix(c,vec3(1.0,0.78,0.52),smoothstep(0.4,0.85,x));',
@@ -91,9 +96,12 @@
     ' return fbm(q+vec3(seed*1.7,0.0,0.0));}',
     'float discTurb(float r,float a){',
     ' float om=1.2*pow(r,-1.5);',
+    ' float blur=smoothstep(0.08,0.6,om*uDiscStep);', // fast-forward: the gas turns so far per frame it smears into rings
+    ' float avg=0.5+0.3*(fbm(vec3(log(r)*7.0,3.0,1.0))-0.5);',
+    ' if(blur>0.99) return avg;',
     ' float P=30.0; float t1=mod(uDiscTime,P); float t2=mod(uDiscTime+0.5*P,P);',
     ' float w1=1.0-abs(2.0*t1/P-1.0);',  // swap between two copies so the swirl never winds up too tight
-    ' return mix(discField(r,a-om*t2,5.0),discField(r,a-om*t1,0.0),w1);}',
+    ' return mix(mix(discField(r,a-om*t2,5.0),discField(r,a-om*t1,0.0),w1),avg,blur);}',
     'vec4 discSample(vec3 hit,vec3 segDir){',
     ' float r=length(hit.xz);',
     ' if(r<3.0||r>uDiscOuter) return vec4(0.0);',
@@ -157,18 +165,19 @@
       '  if(alpha>0.985) break;',
       '  prev=pos;',
       ' }',
-      ' if(state==2) col+=(1.0-alpha)*universe(esc);',
+      f.universe === 'photo' ? ' vec3 sky=universe(esc); if(state==2) col+=(1.0-alpha)*sky;' : ' if(state==2) col+=(1.0-alpha)*universe(esc);',
       ' gl_FragColor=vec4(pow(aces(col),vec3(1.0/1.1)),1.0);',
       '}',
     ].join('\n');
   }
 
   // Toys are filled in by the toys chunk builder (orbiting objects, teddy).
-  BH.SKIN_ID = { rocky: 0, fluffy: 1, cereal: 2, metal: 3 };
+  BH.SKIN_ID = { rocky: 0, bubbly: 1, cereal: 2, metal: 3 };
   BH.SHAPE_ID = { orb: 0, star: 1, torus: 2 };
   BH.OBJECT_RADIUS = 0.9;
   var OBJ_HEAD = [
     'uniform vec4 uObj[OBJ_COUNT]; uniform vec4 uObjInfo[OBJ_COUNT];', // xyz + bounding radius; skin, shape, spin, seed
+    'uniform vec4 uObjRing[OBJ_COUNT]; uniform vec4 uObjPlane[OBJ_COUNT];', // smear colour + how smeared; orbit plane normal + orbit radius
     'vec3 rotY(vec3 p,float a){float c=cos(a),s=sin(a);return vec3(c*p.x+s*p.z,p.y,-s*p.x+c*p.z);}',
     'vec4 shade(vec3 hp,vec3 n,vec3 rd,vec3 q,float skin){',
     ' vec3 L=normalize(-hp);',                                   // lit by the glow around the hole
@@ -181,10 +190,14 @@
     '  col*=0.85+0.15*sin(q.y*14.0+f*5.0); float cr=noise(q*7.0);',
     '  col*=1.0-0.35*smoothstep(0.62,0.72,cr)*(1.0-smoothstep(0.74,0.8,cr)); col*=lit; }'
     ].join('\n'),
-    fluffy: [
-    ' if(skin>0.5&&skin<1.5){ float f=fbm(q*7.0); col=mix(vec3(0.98,0.78,0.86),vec3(1.0,0.96,0.9),f);',
-    '  float rim=1.0-abs(dot(n,-rd)); a=1.0-smoothstep(0.55,1.0,rim+(fbm(q*16.0)-0.5)*0.6);',
-    '  col=col*(lit*0.9+0.1)+uLightCol*rim*rim*0.9; }'
+    bubbly: [
+    // a soap film: see-through, rainbow bands where the film is thin or thick, bright at the edges
+    ' if(skin>0.5&&skin<1.5){ float ct=abs(dot(n,-rd)); float fr=0.08+0.92*pow(1.0-ct,3.0);',
+    '  float th=0.35+0.9*fbm(q*1.8+vec3(0.0,uTime*0.12,uTime*0.05))+0.35*max(-n.y,0.0);', // film drains downward, swirls slowly
+    '  vec3 film=0.5+0.5*cos(6.2831853*(th*(1.2+0.8*ct)+vec3(0.0,0.33,0.67)));',
+    '  vec3 r=reflect(rd,n); float sp=pow(max(dot(r,L),0.0),48.0)*2.2+pow(max(dot(r,normalize(L+vec3(0.0,0.8,0.0))),0.0),12.0)*0.35;',
+    '  vec3 E=film*(max(uLightCol,vec3(0.35))*0.8+uFillCol)*fr*1.3+(uLightCol+0.3)*sp;',
+    '  a=clamp(fr*0.85+sp*0.5,0.06,0.92); col=E/a; }'
     ].join('\n'),
     cereal: [
     ' if(skin>1.5&&skin<2.5){ float f=fbm(q*5.0); float b=noise(q*16.0);',
@@ -248,16 +261,26 @@
       ' vec3 ab=b-a; float L=length(ab); vec3 rd=ab/L; float best=1e9; vec4 res=vec4(0.0);',
       ' for(int i=0;i<OBJ_COUNT;i++){',
       '  vec3 c=uObj[i].xyz; float R=uObj[i].w;',
+      '  float bl=uObjRing[i].w;',
+      '  if(bl>0.01){', // fast-forward: the toy is everywhere on its orbit at once, a faint ring
+      '   vec3 N=uObjPlane[i].xyz; float da=dot(a,N), db=dot(b,N);',
+      '   if(da*db<=0.0&&da!=db){ float tr=da/(da-db)*L; vec3 hr=a+rd*tr;',
+      '    float band=1.0-smoothstep(0.35*R,R,abs(length(hr)-uObjPlane[i].w));',
+      '    if(band>0.0&&tr<best){ best=tr; res=vec4(uObjRing[i].rgb*(uLightCol*0.9+uFillCol+0.12),band*bl*0.5*smoothstep(1.0,3.0,length(hr-uCam))); }',
+      '   }',
+      '  }',
+      '  if(bl>0.99) continue;',
       '  vec3 oc=a-c; float bq=dot(oc,rd); float cq=dot(oc,oc)-R*R; float dd=bq*bq-cq;',
       '  if(dd<0.0) continue;',
       '  float sq=sqrt(dd); float t=-bq-sq; vec3 n; vec3 q;',
       '  if(uObjInfo[i].y<0.5){',
+      '   if(t<0.0) t=-bq+sq;', // already inside (a see-through bubble): its far side
       '   if(t<0.0||t>L||t>best) continue;',
       '   n=normalize(a+rd*t-c); q=rotY(n,uObjInfo[i].z)+uObjInfo[i].w;',
       '  }',
       sc.branch,
       '  best=t; vec3 hp=a+rd*t; res=shade(hp,n,rd,q,uObjInfo[i].x);',
-      '  res.a*=smoothstep(1.0,3.0,length(hp-uCam));',  // fade out rather than hit the camera
+      '  res.a*=smoothstep(1.0,3.0,length(hp-uCam))*(1.0-bl);',  // fade out rather than hit the camera
       ' }',
       ' return res;}',
     ].filter(Boolean).join('\n');
@@ -265,7 +288,7 @@
 
   // The teddy: a picture card in curved space, so it gets lensed like everything else.
   BH.TEDDY_CHUNK = [
-    'uniform vec4 uTeddy; uniform vec3 uTeddyLook; uniform vec3 uTeddyAxis; uniform sampler2D uTeddyTex;', // pos+size; redshift, brightness, stretch
+    'uniform vec4 uTeddy; uniform vec3 uTeddyLook; uniform vec3 uTeddyAxis; uniform sampler2D uTeddyTex; uniform float uTeddySpin;', // pos+size; redshift, brightness, stretch; tumble
     'vec4 teddy(vec3 a,vec3 b){',
     ' if(uTeddyLook.y<0.002) return vec4(0.0);',
     ' vec3 c=uTeddy.xyz; vec3 ab=b-a; vec3 n=normalize(uCam-c);',
@@ -273,12 +296,14 @@
     ' float t=dot(c-a,n)/den; if(t<0.0||t>1.0) return vec4(0.0);',
     ' vec3 p=a+ab*t-c;',
     ' vec3 ax=normalize(uTeddyAxis-n*dot(uTeddyAxis,n)); vec3 bx=cross(n,ax);',
-    ' vec2 uv=vec2(dot(p,bx)/uTeddy.w, dot(p,ax)/(uTeddy.w*uTeddyLook.z));',
+    ' float st=uTeddyLook.z;', // pulled long toward the hole, thinner across (the tide)
+    ' vec2 lp=vec2(dot(p,bx)*pow(st,0.3), dot(p,ax)/st)/uTeddy.w;',
+    ' float cs=cos(uTeddySpin), sn=sin(uTeddySpin); vec2 uv=vec2(cs*lp.x-sn*lp.y, sn*lp.x+cs*lp.y);', // tumbling
     ' if(abs(uv.x)>0.5||abs(uv.y)>0.5) return vec4(0.0);',
     ' vec4 tx=texture2D(uTeddyTex,vec2(uv.x+0.5,0.5-uv.y));',
     ' float g=uTeddyLook.x;',
     ' vec3 col=tx.rgb*(0.45+0.55*min(uLightCol,vec3(1.2)))*vec3(1.0,g,g*g)*(0.4+0.6*g);', // reddens and dims as time slows
-    ' return vec4(col,tx.a*clamp(uTeddyLook.y*1.5,0.0,1.0));}',
+    ' return vec4(col,tx.a*uTeddyLook.y);}',
   ].join('\n');
 
   // Toys: orbiting objects and the teddy. Code for what isn't used is never emitted.
@@ -313,7 +338,8 @@
       });
     }
     if (f.teddy) defs.push('#define HAS_TEDDY');
+    if (f.deriv) defs.push('#define HAS_DERIV');
     var uni = f.universe === 'stars' ? STARS : f.universe === 'plain' ? PLAIN : PHOTO;
-    return [HEADER, defs.join('\n'), UTIL, uni, f.disc ? DISC : '', BH.toyChunks(f), main(f)].join('\n');
+    return [f.deriv ? '#extension GL_OES_standard_derivatives : enable' : '', HEADER, defs.join('\n'), UTIL, uni, f.disc ? DISC : '', BH.toyChunks(f), main(f)].filter(Boolean).join('\n');
   };
 });

@@ -32,6 +32,8 @@
     var W = 0, H = 0, DPR = 1, rs = SCALES[cfg.quality] || 0.5, d = null;
     var t = 0, discT = 0, last = 0, running = false, raf = 0, visible = true, ema = 16.7, lastAdapt = 0, holdUp = 0, fps = 60, frameAcc = 0, frameN = 0, fpsT = 0;
     var view = { yaw: cfg.view.yaw, tilt: cfg.view.tilt }, drift = 0;
+    var derivExt = gl && gl.getExtension('OES_standard_derivatives'), aniso = gl && (gl.getExtension('EXT_texture_filter_anisotropic') || gl.getExtension('WEBKIT_EXT_texture_filter_anisotropic'));
+    var spin = 0, discRate = 1, realT = 0; // toy tumble angle; disc-clock units per second; real seconds that have passed there
     var reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     api.hooks = hooks; // later modules (toys) attach per-frame uniform setters here
 
@@ -43,6 +45,7 @@
     function build() {
       var f = BH.features(cfg);
       if (f.universe === 'photo' && !photoTex) { f.universe = 'stars'; f.photoKind = null; } // until the photo arrives (or if it never does)
+      f.deriv = !!derivExt;
       var key = JSON.stringify(f);
       if (key === progKey && prog) return true;
       try {
@@ -107,13 +110,13 @@
       set3('uNebA', rgb(un.nebulaA)); set3('uNebB', rgb(un.nebulaB));
       set1('uDiscAmount', dc.amount); set1('uDiscBright', dc.brightness); set1('uDiscOuter', d.discOuter);
       set1('uTurb', dc.turbulence); set1('uGlow', cfg.glow); set3('uColA', rgb(dc.colorA)); set3('uColB', rgb(dc.colorB));
-      set1('uColorMode', dc.colorMode === 'custom' ? 1 : 0); set1('uDiscTime', discT);
+      set1('uColorMode', dc.colorMode === 'custom' ? 1 : 0); set1('uDiscTime', discT % 30); set1('uDiscStep', discRate / 60);
       if (U.uPhoto && photoTex) {
         gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, photoTex); gl.uniform1i(U.uPhoto, 0);
         // the photo plate faces the default (calm) view, so turning around shows its mirrored repeat
         var y0 = cfg.view.yaw * RAD;
         set3('uPhotoFwd', [-Math.sin(y0), 0, -Math.cos(y0)]); set3('uPhotoRight', [Math.cos(y0), 0, -Math.sin(y0)]); set3('uPhotoUp', [0, 1, 0]);
-        var aspect = photoTex.aspect || 1.5, ph = 2.2 * Math.tan(BH.derive(cfg, { w: W, h: H }).fovY / 2) * 1.15;
+        var aspect = photoTex.aspect || 1.5, ph = 2.2 * Math.tan(d.baseFovY / 2) * 1.15; // sized for the unzoomed view, so zooming magnifies the photo
         if (U.uPhotoSize) gl.uniform2f(U.uPhotoSize, Math.max(ph * aspect, ph * W / H), Math.max(ph, ph * W / H / aspect));
       }
       if (U.uLightCol) {
@@ -123,22 +126,30 @@
         set3('uFillCol', un.mode === 'plain' ? rgb(un.plain).map(function (v) { return v * 0.4; }) : un.mode === 'photo' ? [0.12, 0.11, 0.1] : [0.035, 0.035, 0.055]);
       }
       if (U.uObj) {
-        var P = [], I = [];
+        var P = [], I = [], RG = [], PL = [];
         cfg.toys.objects.forEach(function (o, i) {
-          var p = BH.orbitPosition(BH.toyOrbitRadius(o.orbit), o.tilt, o.phase, discT, 1, 1);
+          var R = BH.toyOrbitRadius(o.orbit), p = BH.orbitPosition(R, o.tilt, o.phase, discT, 1, 1), ti = o.tilt * RAD;
+          // how far it moves in one frame: past ~half a radian it reads as a ring, like a long-exposure photo
+          var perFrame = BH.discOmega(R, 1, 1) * discRate / 60, bl = Math.min(1, Math.max(0, (perFrame - 0.15) / 0.45));
           P.push(p[0], p[1], p[2], BH.OBJECT_RADIUS);
-          I.push(BH.SKIN_ID[o.skin], BH.SHAPE_ID[o.shape], t * 0.25 + i * 2.1, i * 13.7 + 1.3);
+          I.push(BH.SKIN_ID[o.skin], BH.SHAPE_ID[o.shape], spin + i * 2.1, i * 13.7 + 1.3);
+          var rc = RING_COLOR[o.skin] || [0.6, 0.6, 0.6];
+          RG.push(rc[0], rc[1], rc[2], bl * bl * (3 - 2 * bl));
+          PL.push(0, Math.cos(ti), -Math.sin(ti), R);
         });
         gl.uniform4fv(U.uObj, P); gl.uniform4fv(U.uObjInfo, I);
+        if (U.uObjRing) gl.uniform4fv(U.uObjRing, RG);
+        if (U.uObjPlane) gl.uniform4fv(U.uObjPlane, PL);
       }
       if (U.uTeddy) {
         if (!teddyTex) teddyTex = makeTeddyTexture();
         var y1 = cfg.view.yaw * RAD + 0.7, el = 35 * RAD;
         var ax = [Math.sin(y1) * Math.cos(el), Math.sin(el), Math.cos(y1) * Math.cos(el)];
         gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, teddyTex); gl.uniform1i(U.uTeddyTex, 1);
-        gl.uniform4f(U.uTeddy, ax[0] * ted.r, ax[1] * ted.r, ax[2] * ted.r, 1.2);
+        gl.uniform4f(U.uTeddy, ax[0] * ted.r, ax[1] * ted.r, ax[2] * ted.r, 2.0);
         set3('uTeddyAxis', ax);
         set3('uTeddyLook', [ted.g, ted.brightness * tedFade, ted.stretch]);
+        set1('uTeddySpin', tedSpin);
       }
       for (var i = 0; i < hooks.length; i++) hooks[i](api, { t: t, discT: discT, derived: d, cfg: cfg, camera: c });
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -164,14 +175,23 @@
       frameN++; frameAcc += dt;
       if (frameAcc > 0.5) { fps = frameN / frameAcc; frameN = 0; frameAcc = 0; }
     }
-    // the teddy falls on the same clock as the disc, a little faster, and starts again when it has faded
-    var ted = BH.teddyStep({ r: 14, r0: 14.5 }, 0), tedFade = 0, teddyTex = null;
-    function stepTeddy(dt) {
-      if (!cfg.toys.teddy) { ted = BH.teddyStep({ r: 14, r0: 14.5 }, 0); tedFade = 0; return; }
+    // The teddy falls on the same clock as the disc gas (real physics, same units), tumbling as it goes.
+    // Seen from far away it never crosses: it freezes and fades. A new one starts only at normal-ish speeds,
+    // so fast-forward shows the truth (the bear stays frozen, invisible) instead of a flicker of bears.
+    var TED0 = { r: 9, r0: 9.5 }, ted = BH.teddyStep(TED0, 0, cfg.mass), tedFade = 0, tedSpin = 0.4, tedGone = 0, teddyTex = null;
+    function stepTeddy(dt, discDt) {
+      if (!cfg.toys.teddy) { ted = BH.teddyStep(TED0, 0, cfg.mass); tedFade = 0; tedGone = 0; return; }
       tedFade = Math.min(1, tedFade + dt / 1.5);
-      ted = BH.teddyStep(ted, dt * 8 * cfg.pace / d.scale);
-      if (ted.done) { ted = BH.teddyStep({ r: 14, r0: 14.5 }, 0); tedFade = 0; }
+      var tdt = discDt * 1.2 / Math.SQRT1_2; // disc-clock units → horizon light-crossing times
+      if (!ted.done) {
+        ted = BH.teddyStep(ted, tdt, cfg.mass);
+        tedSpin = (tedSpin + Math.min(tdt, 2) * 0.22 * ted.g) % (2 * Math.PI); // its tumble looks slower and slower too
+      } else {
+        tedGone += dt;
+        if (tedGone > 1.5 && (cfg.time || 0) <= 1) { ted = BH.teddyStep(TED0, 0, cfg.mass); tedFade = 0; tedGone = 0; tedSpin = Math.random() * 6.28; }
+      }
     }
+    api.teddyState = function () { return { r: ted.r, done: ted.done, gone: tedGone }; };
     function makeTeddyTexture() {
       var cv = document.createElement('canvas'); cv.width = cv.height = 128;
       var x = cv.getContext('2d');
@@ -197,9 +217,14 @@
       return tex;
     }
     function step(dt) {
-      stepTeddy(dt);
+      // time control: 10^time × the normal pace (×1 trillion at the top)
+      discRate = cfg.pace / d.scale * (d.mobile ? 1.35 : 1) * Math.pow(10, cfg.time || 0);
+      var discDt = dt * discRate;
+      stepTeddy(dt, discDt);
       t += dt;
-      discT += dt * cfg.pace / d.scale * (d.mobile ? 1.35 : 1);
+      discT += discDt;
+      realT += discDt * BH.realSecondsPerDiscUnit(cfg.mass);
+      spin = (spin + dt * 0.25 * Math.min(Math.pow(10, cfg.time || 0), 8)) % (2 * Math.PI);
       if (cfg.view.drift) drift += dt * 1.2;
     }
 
@@ -220,21 +245,31 @@
       resize();
       if (!running) { draw(); start(); }
     };
+    var RING_COLOR = { rocky: [0.55, 0.49, 0.42], bubbly: [0.75, 0.85, 1.0], cereal: [0.95, 0.66, 0.3], metal: [0.85, 0.87, 0.92] };
     api.setView = function (v) { if (v.yaw != null) view.yaw = v.yaw; if (v.tilt != null) view.tilt = Math.max(0, Math.min(89, v.tilt)); if (!running) draw(); };
     api.getView = function () { return { yaw: view.yaw + drift, tilt: view.tilt }; };
     api.resetDrift = function () { drift = 0; };
     api.setPhoto = function (img, kind) {
       if (!gl) return;
       if (!img) { if (photoTex) gl.deleteTexture(photoTex); photoTex = null; build(); return; }
+      // The lens squeezes big parts of the photo into a few pixels. Mip levels (pre-blurred copies) let those
+      // pixels show the area's average colour instead of one random photo pixel: no confetti noise.
+      // WebGL1 only builds them for power-of-two sizes, so resample first.
+      var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+      function pot(n) { return Math.min(2048, Math.pow(2, Math.round(Math.log(Math.max(n, 2)) / Math.LN2))); }
+      var src = img, pw = pot(iw), ph2 = pot(ih);
+      if (pw !== iw || ph2 !== ih) { src = document.createElement('canvas'); src.width = pw; src.height = ph2; src.getContext('2d').drawImage(img, 0, 0, pw, ph2); }
       var tex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, src);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, kind === 'pano' ? gl.REPEAT : gl.CLAMP_TO_EDGE);
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-      tex.aspect = (img.naturalWidth || img.width) / (img.naturalHeight || img.height);
+      if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(4, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+      tex.aspect = iw / ih;
       if (photoTex) gl.deleteTexture(photoTex);
       photoTex = tex;
       build();
@@ -260,6 +295,8 @@
     api.render = function () { draw(); };
     api.stats = function () { return { fps: Math.round(fps), renderScale: rs, steps: (BH.features(cfg).quality), running: running, size: [canvas.width, canvas.height] }; };
     api.config = function () { return cfg; };
+    // for the editor's time read-outs
+    api.timeInfo = function () { return { discT: discT, real: realT, realPerSecond: discRate * BH.realSecondsPerDiscUnit(cfg.mass) }; };
     api.destroy = function () { stop(); if (io) io.disconnect(); if (ro) ro.disconnect(); document.removeEventListener('visibilitychange', onVis); canvas.remove(); };
 
     // ---------- lifecycle ----------

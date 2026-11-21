@@ -30,3 +30,22 @@ test('select options are all valid values', () => {
     for (const o of c.options) assert.equal(get(BH.normalize(setPath(c.key, o[0])), c.key), o[0], c.key + '=' + o[0]);
   }
 });
+
+test('there are Zoom and Time sliders, and no Pace slider (Time replaces it)', () => {
+  const keys = BH.CONTROLS.map((c) => c.key);
+  assert.ok(keys.includes('view.zoom'));
+  assert.ok(keys.includes('time'));
+  assert.ok(!keys.includes('pace'));
+});
+
+test('time speed reads in plain words', () => {
+  assert.equal(BH.timeLabel(0), '×1');
+  assert.equal(BH.timeLabel(-1), '×0.1');
+  assert.equal(BH.timeLabel(3), '×1,000');
+  assert.equal(BH.timeLabel(6.3), '×2 million');
+  assert.equal(BH.timeLabel(12), '×1 trillion');
+});
+
+test('the skin picker offers Bubbly', () => {
+  assert.deepEqual(BH.SKIN_CHOICES.map((s) => s[0]), ['rocky', 'bubbly', 'cereal', 'metal']);
+});

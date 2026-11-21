@@ -10,6 +10,7 @@
     'universe.photoKind': 'flat = a picture behind the hole, pano = a 360° photo wrapped all around',
     'toys.objects': 'Things in orbit: shape orb/star/torus, skin rocky/fluffy/cereal/metal, orbit 0–1, tilt and phase in degrees',
     'quality': 'auto / lighter / sharper',
+    'pace': 'Overall pace (0.25–2)',
   };
   function comments() {
     var c = {};

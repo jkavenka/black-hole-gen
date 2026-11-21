@@ -93,3 +93,33 @@ test('portrait phones frame the hole by the shorter side (width)', () => {
   const ofWidth = (shadow / d.fovY) * 812 / 375;
   assert.ok(Math.abs(ofWidth - 0.27) < 0.01, 'shadow is ' + ofWidth + ' of the width');
 });
+
+test('old "fluffy" links become bubbly', () => {
+  const c = BH.normalize({ toys: { objects: [{ skin: 'fluffy' }] } });
+  assert.equal(c.toys.objects[0].skin, 'bubbly');
+});
+
+test('zoom and time have calm defaults and safe ranges', () => {
+  assert.equal(BH.DEFAULTS.view.zoom, 1);
+  assert.equal(BH.DEFAULTS.time, 0);
+  const c = BH.normalize({ view: { zoom: 99, x: -3 }, time: 40 });
+  assert.equal(c.view.zoom, 4);
+  assert.equal(c.view.x, -0.5);
+  assert.equal(c.time, 12);
+  assert.equal(BH.normalize({ view: { zoom: 0 }, time: -9 }).view.zoom, 0.5);
+  assert.equal(BH.normalize({ time: -9 }).time, -1);
+});
+
+test('zooming never lets the shadow fill the frame, and never goes fish-eye', () => {
+  for (const zoom of [0.5, 1, 2, 4]) for (const closer of [0, 1]) for (const mass of [0, 1]) for (const vp of [{ w: 1440, h: 900 }, { w: 375, h: 800 }]) {
+    const d = BH.derive(BH.normalize({ mass, view: { closer, zoom } }), vp);
+    const shadow = 2 * Math.asin(1.5 * Math.sqrt(3) / d.distance * Math.sqrt(1 - 1 / d.distance));
+    const short = Math.min(vp.w, vp.h) / vp.h;
+    assert.ok(shadow / d.fovY <= 0.85 * short + 1e-9 || d.fovY >= 2.0 - 1e-9, `zoom ${zoom} closer ${closer} mass ${mass}`);
+    assert.ok(shadow / d.fovY <= 0.85 + 1e-9);
+    assert.ok(d.fovY <= 2.0 + 1e-9);
+  }
+  const z1 = BH.derive(BH.DEFAULTS, { w: 1440, h: 900 }), z2 = BH.derive(BH.normalize({ view: { zoom: 2 } }), { w: 1440, h: 900 });
+  assert.ok(Math.abs(Math.tan(z1.fovY / 2) / Math.tan(z2.fovY / 2) - 2) < 0.05, 'zoom 2 magnifies about 2×');
+  assert.equal(z2.baseFovY, z1.fovY, 'the photo plate keeps its size when zooming');
+});

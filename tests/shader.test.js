@@ -29,7 +29,7 @@ test('representative shaders are structurally sound', () => {
     { disc: { amount: 0 } },
     { universe: { mode: 'plain' } },
     { universe: { mode: 'photo', photo: 'https://x.y/a.jpg' } },
-    { toys: { teddy: true, objects: [{ skin: 'metal' }, { skin: 'fluffy' }, { skin: 'rocky' }] } },
+    { toys: { teddy: true, objects: [{ skin: 'metal' }, { skin: 'bubbly' }, { skin: 'rocky' }] } },
     { quality: 'sharper', disc: { colorMode: 'custom' } },
   ];
   for (const c of combos) {
@@ -59,4 +59,32 @@ test('torus shape ships only torus code', () => {
   assert.match(s, /#define HAS_SHAPE_TORUS/);
   assert.match(s, /sdTorus/);
   assert.doesNotMatch(s, /sdStar/);
+});
+
+test('bubbly skin ships its film code and nothing called fluffy', () => {
+  const s = fs({ toys: { objects: [{ skin: 'bubbly' }] } });
+  assert.match(s, /SKIN_BUBBLY/);
+  assert.match(s, /film/);
+  assert.doesNotMatch(s, /fluffy/i);
+});
+
+test('photo universe blends with mip levels; panoramas avoid the seam when derivatives exist', () => {
+  const f = BH.features(BH.normalize({ universe: { mode: 'photo', photo: 'https://x.y/a.jpg', photoKind: 'pano' } }));
+  const plain = BH.buildFragmentShader(f);
+  assert.doesNotMatch(plain, /GL_OES_standard_derivatives/);
+  const withD = BH.buildFragmentShader(Object.assign({}, f, { deriv: true }));
+  assert.match(withD.split('\n')[0], /#extension GL_OES_standard_derivatives : enable/);
+  assert.match(withD, /fwidth/);
+  assert.match(withD, /vec3 sky=universe\(esc\)/, 'sampled outside the branch so mip selection is well defined');
+});
+
+test('fast time smears the disc and the toys', () => {
+  const s = fs({ toys: { objects: [{ skin: 'cereal' }] } });
+  assert.match(s, /uDiscStep/);
+  assert.match(s, /uObjRing/);
+  assert.match(s, /uObjPlane/);
+});
+
+test('teddy tumbles', () => {
+  assert.match(fs({ toys: { teddy: true } }), /uTeddySpin/);
 });
