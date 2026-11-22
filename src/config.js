@@ -148,5 +148,7 @@
       mobile: mobile,
     };
   };
+  // Nebula slider → glow strength. Gentle at the calm default, clearly coloured when turned up.
+  BH.nebulaStrength = function (n) { return 0.34 * n * (0.6 + 1.5 * n); };
   BH.toyOrbitRadius = function (orbit) { return 6 + orbit * 12; }; // inside the calm camera distance; toys pass through the glow and behind the hole
 });

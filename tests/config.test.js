@@ -123,3 +123,11 @@ test('zooming never lets the shadow fill the frame, and never goes fish-eye', ()
   assert.ok(Math.abs(Math.tan(z1.fovY / 2) / Math.tan(z2.fovY / 2) - 2) < 0.05, 'zoom 2 magnifies about 2×');
   assert.equal(z2.baseFovY, z1.fovY, 'the photo plate keeps its size when zooming');
 });
+
+test('nebula: default looks about the same as before, turning it up really shows the colours', () => {
+  const old = (n) => 0.34 * n; // strength before this fix
+  assert.equal(BH.nebulaStrength(0), 0);
+  const d = BH.nebulaStrength(0.4) / old(0.4);
+  assert.ok(d > 1 && d < 1.3, 'default changed by ' + d);
+  assert.ok(BH.nebulaStrength(1) / BH.nebulaStrength(0.4) > 4, 'slider range too flat');
+});

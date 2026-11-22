@@ -43,7 +43,7 @@
     { group: 'Universe', key: 'universe.galaxy', label: 'Milky band', type: 'slider', min: 0, max: 1, step: 0.01, showIf: when('universe.mode', 'stars') },
     { group: 'Universe', key: 'universe.nebula', label: 'Nebula', type: 'slider', min: 0, max: 1, step: 0.01, showIf: when('universe.mode', 'stars') },
     { group: 'Universe', key: 'universe.nebulaA', label: 'Nebula colour 1', type: 'color', showIf: when('universe.mode', 'stars') },
-    { group: 'Universe', key: 'universe.nebulaB', label: 'Nebula colour 2', type: 'color', showIf: when('universe.mode', 'stars') },
+    { group: 'Universe', key: 'universe.nebulaB', label: 'Nebula colour 2', type: 'color', hint: 'Turn up Nebula to see these colours better.', showIf: when('universe.mode', 'stars') },
     { group: 'Universe', key: 'universe.plain', label: 'Colour', type: 'color', showIf: when('universe.mode', 'plain') },
     { group: 'Universe', action: 'upload', label: 'Upload photo', type: 'button', showIf: when('universe.mode', 'photo'), hint: 'Your dinner table, your street, your cat. It stays on your computer.' },
     { group: 'Universe', action: 'link', label: '…or image link', type: 'button', showIf: when('universe.mode', 'photo') },

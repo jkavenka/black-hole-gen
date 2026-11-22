@@ -106,7 +106,7 @@
       set3('uCam', c.cam); set3('uFwd', c.fwd); set3('uRight', c.right); set3('uUp', c.up);
       set1('uTan', tn); set1('uPix', 2 * tn / canvas.height); set1('uTime', t);
       set3('uPlain', rgb(un.plain));
-      set1('uStars', un.stars); set1('uGalaxy', un.galaxy); set1('uNebula', un.nebula);
+      set1('uStars', un.stars); set1('uGalaxy', un.galaxy); set1('uNebula', BH.nebulaStrength(un.nebula));
       set3('uNebA', rgb(un.nebulaA)); set3('uNebB', rgb(un.nebulaB));
       set1('uDiscAmount', dc.amount); set1('uDiscBright', dc.brightness); set1('uDiscOuter', d.discOuter);
       set1('uTurb', dc.turbulence); set1('uGlow', cfg.glow); set3('uColA', rgb(dc.colorA)); set3('uColB', rgb(dc.colorB));

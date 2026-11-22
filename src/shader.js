@@ -59,7 +59,7 @@
     ' float lanes=smoothstep(0.35,0.65,fbm(d*9.0+7.0));',
     ' col+=uGalaxy*inBand*(0.09+0.24*dust)*mix(vec3(0.95,0.85,0.72),vec3(0.75,0.8,0.95),dust)*(0.35+0.65*lanes);',
     ' float n1=fbm(d*2.2+vec3(4.0,1.0,7.0)),n2=fbm(d*3.1+vec3(9.0,2.0,5.0));',
-    ' col+=uNebula*0.34*(uNebA*smoothstep(0.45,0.85,n1)+uNebB*smoothstep(0.5,0.9,n2));',
+    ' col+=uNebula*(uNebA*smoothstep(0.45,0.85,n1)+uNebB*smoothstep(0.5,0.9,n2));',
     ' return col;}',
   ].join('\n');
   var PLAIN = 'vec3 universe(vec3 d){return uPlain;}';
