@@ -131,3 +131,10 @@ test('nebula: default looks about the same as before, turning it up really shows
   assert.ok(d > 1 && d < 1.3, 'default changed by ' + d);
   assert.ok(BH.nebulaStrength(1) / BH.nebulaStrength(0.4) > 4, 'slider range too flat');
 });
+
+test('phones: each quality gets its own sharpness limit, and Sharper is as sharp as on a computer', () => {
+  assert.equal(BH.mobileScaleCap('lighter'), 0.35);
+  assert.equal(BH.mobileScaleCap('auto'), 0.5);
+  assert.ok(BH.mobileScaleCap('sharper') >= 0.75);
+  assert.ok(BH.mobileScaleCap('lighter') < BH.mobileScaleCap('auto'));
+});

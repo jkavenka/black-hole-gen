@@ -79,7 +79,7 @@
       d = BH.derive(cfg, { w: W, h: H });
       if (!gl || !W || !H) return;
       var s = rs;
-      if (d.mobile && opts.mobileAuto) s = Math.min(s, 0.35);
+      if (d.mobile && opts.mobileAuto) s = Math.min(s, BH.mobileScaleCap(cfg.quality));
       var cw = Math.max(1, Math.round(W * DPR * s)), ch = Math.max(1, Math.round(H * DPR * s));
       // pixel budget: big screens get the same GPU work as a laptop-sized window, so nothing heats up
       var budget = PIXEL_BUDGET[cfg.quality] || PIXEL_BUDGET.auto;
@@ -159,8 +159,9 @@
       if (cfg.quality !== 'auto') return;
       ema = ema * 0.93 + dt * 1000 * 0.07;
       if (now - lastAdapt < 1000) return;
-      if (ema > 21 && rs > 0.35) { rs = Math.max(0.35, rs - 0.05); holdUp = now + 10000; lastAdapt = now; resize(); }
-      else if (ema < 17.5 && rs < 0.75 && now > holdUp) { rs = Math.min(0.75, rs + 0.05); lastAdapt = now; resize(); }
+      if (ema > 21 && rs > 0.35) { rs = Math.max(0.35, rs - 0.05); holdUp = now + 10000; lastAdapt = now; resize(); return; }
+      var top = d.mobile && opts.mobileAuto ? BH.mobileScaleCap('auto') : 0.75;
+      if (ema < 17.5 && rs < top && now > holdUp) { rs = Math.min(top, rs + 0.05); lastAdapt = now; resize(); }
     }
 
     function frame(now) {

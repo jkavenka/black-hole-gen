@@ -150,5 +150,7 @@
   };
   // Nebula slider → glow strength. Gentle at the calm default, clearly coloured when turned up.
   BH.nebulaStrength = function (n) { return 0.34 * n * (0.6 + 1.5 * n); };
+  // Phones: the most of full resolution each quality may use (computers go up to 0.75).
+  BH.mobileScaleCap = function (quality) { return { lighter: 0.35, auto: 0.5, sharper: 0.75 }[quality] || 0.5; };
   BH.toyOrbitRadius = function (orbit) { return 6 + orbit * 12; }; // inside the calm camera distance; toys pass through the glow and behind the hole
 });
